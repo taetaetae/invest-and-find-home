@@ -1,0 +1,20 @@
+# 환경변수 (API 키 포함)
+.envrc
+
+# 실행 결과 산출물
+_workspace/
+
+# IDE
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
