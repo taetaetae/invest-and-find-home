@@ -86,8 +86,20 @@ _workspace/2026-04-10_0132/
 ├── 00_input/
 │   └── user_params.json           # 사용자 입력 파라미터
 ├── 01_financial_simulation.json   # 재무 시뮬레이션 결과
-├── 02_property_research.json      # 매물 조사 결과
-└── housing_report.html            # 최종 HTML 리포트
+├── 02_raw/                        # 월별 원본 월세 매물
+│   ├── 202602.json
+│   ├── 202603.json
+│   └── 202604.json
+├── 02_scenarios/                  # 시나리오별 TOP 10 매물
+│   ├── 목표12억_수익률1%.json
+│   ├── 목표12억_수익률2%.json
+│   └── ...
+├── 02_property_research.json      # 매물 조사 인덱스
+├── 03_report/                     # HTML 파트 파일
+│   ├── header.html
+│   ├── scenario_*.html
+│   └── footer.html
+└── housing_report.html            # 최종 HTML 리포트 (cat 조합)
 ```
 
 `housing_report.html`을 브라우저에서 열면 시나리오별 월세 TOP 10 비교 리포트를 확인할 수 있습니다.

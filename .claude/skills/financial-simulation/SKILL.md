@@ -60,16 +60,6 @@ property-researcher에게는 9가지 시나리오별 **상한선**을 전달한�
 - `calculate_compound_growth(initial_10k, monthly_contribution_10k, annual_rate_pct, years)` — 복리 성장
 - `calculate_monthly_cashflow(monthly_income_10k, monthly_loan_payment_10k)` — 월 현금흐름 (생활비 제외)
 
-### 7. 대출 조건 참고 (2024~2025 기준)
-
-한국 월세 대출 통상 조건:
-
-| 대출 유형 | 한도 | 금리 범위 |
-|----------|------|----------|
-| 월세대출 (청년) | 월 최대 40만원 | 연 1.3~1.5% |
-
-최신 금리는 WebSearch로 확인하여 보정한다.
-
 ## 출력 형식
 
 `_workspace/01_financial_simulation.json` 에 저장:
