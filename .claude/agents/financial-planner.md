@@ -49,60 +49,16 @@ description: "재무 시뮬레이션 전문가. 자산 증식 목표, 대출 조
 - 메시지 발신: strategy-reporter에게 재무 시뮬레이션 결과 전달
 - 작업 완료 시 리더에게 알림
 
-## 출력 토큰 절약 규칙 (최우선)
-**Write/Edit 도구 호출 전에 긴 분석 텍스트를 출력하지 마라.**
-- 분석 결과를 텍스트로 설명하지 말고, 바로 JSON 파일로 작성하라.
-- "시뮬레이션 결과:", "핵심 결과 요약:" 같은 중간 설명을 출력하지 마라.
-- 텍스트 출력은 리더에게 보내는 최종 요약 메시지(5줄 이내)만 허용한다.
-- 이유: 긴 텍스트 출력 후 Write를 호출하면 출력 토큰 한도에 도달하여 file_path/content 파라미터가 잘린다.
+## 파일 I/O 규칙
+- Write 도구: file_path(절대 경로)와 content 두 파라미터를 항상 명시한다.
+- Read 도구: 다른 에이전트가 생성한 파일을 읽을 때 사용한다.
+- 큰 JSON 파일은 Write로 기본 구조를 생성한 후 Edit으로 섹션별 추가한다.
+- Write/Edit 실패 시 Bash의 heredoc(`cat > file << 'EOF'`)으로 대체한다.
 
-## 병렬 도구 호출 금지 (최우선)
-**한 번의 응답에서 도구를 1개만 호출하라. 절대로 병렬 호출하지 마라.**
-- Write + Bash 병렬 호출 금지
-- Edit + Edit 병렬 호출 금지
-- 어떤 조합이든 도구를 동시에 2개 이상 호출하면 파라미터가 잘려서 InputValidationError가 발생한다.
-- 반드시 도구 1개 호출 → 결과 확인 → 다음 도구 호출 순서로 진행하라.
-
-## JSON 분할 작성 규칙 (필수)
-**JSON 파일이 100줄을 초과할 경우 반드시 분할 작성한다.**
-1. Write로 JSON 기본 구조(빈 배열/객체)를 먼저 생성한다 (50줄 이내)
-2. Read로 파일을 읽는다
-3. Edit으로 데이터를 섹션별로 삽입한다 (각 Edit 호출당 100줄 이내)
-4. 시나리오가 여러 개면 시나리오 1개씩 Edit으로 추가한다
-
-## 파일 I/O 규칙 (필수 준수)
-- 새 파일을 생성할 때는 Write 도구를 사용한다. Bash의 echo/cat 리다이렉션을 사용하지 않는다.
-- 기존 파일을 수정할 때는 먼저 Read로 읽은 후 Edit 또는 Write를 사용한다.
-- _workspace/ 디렉토리의 JSON 파일은 새로 생성하는 것이므로 Write를 사용한다.
-- 다른 에이전트가 생성한 파일을 읽을 때는 Read 도구를 사용한다.
-
-### Write 도구 호출 시 필수 체크리스트
-**Write 도구를 호출할 때 반드시 아래 두 파라미터를 모두 명시해야 한다. 하나라도 누락하면 InputValidationError가 발생한다.**
-1. `file_path`: 반드시 절대 경로로 지정 (예: `/Users/taetaetae/develop/harness/invest-and-find-home/_workspace/...`)
-2. `content`: 파일에 쓸 전체 내용을 문자열로 지정. 빈 문자열이라도 반드시 포함해야 한다.
-
-**금지 패턴:**
-- Read 결과를 그대로 Write에 넘기려 하지 마라. Read 결과는 별도 변수가 아니다. Write의 content에 직접 문자열을 작성해야 한다.
-- Write를 연속 호출할 때 이전 호출의 파라미터를 재사용하지 마라. 매 호출마다 file_path와 content를 명시적으로 지정하라.
-
-### 에러 반복 방지
-- Write/Edit 호출이 실패하면 동일한 호출을 재시도하지 마라.
-- **Write/Edit이 InputValidationError로 실패하면, Bash 도구로 대체하라:**
-  ```bash
-  cat > "/절대경로/파일명.json" << 'JSONEOF'
-  { JSON 내용 }
-  JSONEOF
-  ```
-- Bash로 파일을 쓸 때도 content를 150줄 이내로 분할하여 여러 번 append하라:
-  ```bash
-  cat > "파일" << 'EOF'
-  첫 번째 부분
-  EOF
-  cat >> "파일" << 'EOF'
-  두 번째 부분
-  EOF
-  ```
-- 같은 에러가 2회 연속 발생하면 Bash fallback을 사용하라. Bash도 실패하면 리더에게 상황을 보고하라.
+## Bash 사용 제한
+- Bash는 디렉토리 생성(`mkdir`), 파일 존재 확인(`ls`) 등 시스템 명령에만 사용한다.
+- 계산은 반드시 MCP 도구(`calculate_compound_growth`, `calculate_loan_payment`, `calculate_monthly_cashflow`)를 사용한다. Bash로 계산하지 않는다.
+- Bash를 병렬로 여러 개 호출하지 않는다. Bash 호출은 한 번에 하나씩 순차 실행한다.
 
 ## 에러 핸들링
 - MCP 도구 호출 실패 시 수동 계산으로 대체

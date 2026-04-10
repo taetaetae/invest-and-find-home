@@ -151,14 +151,22 @@ Agent(
     사용할 MCP 도구: get_apartment_rent만 사용. 오피스텔/빌라 조회 금지.
     전세 매물은 제외하고 월세 매물(monthly_rent_10k > 0)만 수집하세요.
     user_params.json에 min_area_sqm/max_area_sqm이 있으면 MCP 도구 호출 시 해당 파라미터를 전달하세요.
-    financial-planner의 시뮬레이션 결과({RUN_DIR}/01_financial_simulation.json)가
-    준비되면 읽어서 9가지 시나리오별 최대 가능 금액 기준으로 매물을 필터링하세요.
+
+    [중요] 다중 파일 점진적 저장 규칙:
+    1. mkdir -p {RUN_DIR}/02_raw {RUN_DIR}/02_scenarios
+    2. 월별로 get_apartment_rent 호출 후 즉시 {RUN_DIR}/02_raw/{YYYYMM}.json에 Write (월세만 필터링)
+    3. financial-planner 결과({RUN_DIR}/01_financial_simulation.json) 읽은 후,
+       시나리오별로 필터링하여 즉시 {RUN_DIR}/02_scenarios/{scenario_id}.json에 Write
+    4. 마지막에 {RUN_DIR}/02_property_research.json (인덱스 파일)을 Write
+    각 Write의 content는 3KB(100줄) 이하로 제한하세요.
+
+    [중요] cashflow_comment를 생성하지 마세요.
+    매물의 기본 정보(단지명, 면적, 보증금, 월세, 층수, 건축년도)만 저장하세요.
+    cashflow 계산은 strategy-reporter가 담당합니다.
+
     중요: 투자금이 0원이 되는(자기자본 전액을 주거에 투입하는) 방안은 제외하세요.
     해당 조건에서 매물이 없으면 '조건에 맞는 매물 없음'으로 표시하세요.
     각 시나리오별로 월세 매물 중 가장 비싼(공격적인) 매물 TOP 10을 선별하세요.
-    각 매물별로 자금 흐름 코멘트를 반드시 포함하세요:
-    - 월세: 보증금 총액, 대출 금액, 자기자본 투입액, 대출 이자(회사 지원 반영), 월세 금액, 월 총 주거비(이자+월세), 남은 투자금
-    결과를 {RUN_DIR}/02_property_research.json에 Write 도구로 새로 생성하세요.
     완료 후 리더에게 알려주세요."
 )
 
@@ -170,17 +178,25 @@ Agent(
   prompt: "당신은 리포트 생성 전문가입니다.
     financial-planner와 property-researcher의 결과가 모두 준비되면:
     1. {RUN_DIR}/01_financial_simulation.json 읽기
-    2. {RUN_DIR}/02_property_research.json 읽기
-    3. strategy-report 스킬을 참조하여 9가지 시나리오별 월세 TOP 10 리포트 구성
-    4. 각 매물별로 자금 흐름 코멘트를 반드시 표시하세요:
+    2. {RUN_DIR}/02_property_research.json (인덱스) 읽기 → 시나리오 파일 경로 확인
+    3. 각 시나리오 파일({RUN_DIR}/02_scenarios/{id}.json)을 개별로 읽기
+    4. strategy-report 스킬을 참조하여 각 매물별 cashflow 계산:
        - 보증금 구성 (자기자본 + 대출 내역)
        - 대출 이자 (회사 지원 반영 후 실질 월 부담액)
        - 월세 금액과 월 총 주거비 (이자+월세)
        - 남은 투자금과 예상 투자 수익
+       - 목표일 예상 자산과 달성률
     5. 투자금이 0원이 되는 방안은 제외하세요.
-    6. {RUN_DIR}/housing_report.html에 Write 도구로 최종 HTML 리포트 새로 생성
-    리포트는 시나리오별 탭 또는 섹션으로 구분하여 9가지 시나리오를 모두 포함하세요.
-    모든 파일은 Write 도구로 새로 생성하세요.
+
+    [중요] HTML 분할 생성 규칙:
+    1. mkdir -p {RUN_DIR}/03_report
+    2. 시나리오별로 HTML 섹션을 {RUN_DIR}/03_report/scenario_{id}.html에 개별 Write
+    3. {RUN_DIR}/03_report/header.html에 DOCTYPE+CSS+사용자 조건 요약 Write
+    4. {RUN_DIR}/03_report/footer.html에 면책 조항+닫기 태그 Write
+    5. Bash로 cat header.html scenario_*.html footer.html > housing_report.html 조합
+    각 Write의 content는 3KB(100줄) 이하로 제한하세요.
+    03_strategies.json은 생성하지 마세요 (HTML에 직접 포함).
+
     완료 후 리더에게 파일 경로를 알려주세요."
 )
 ```
@@ -190,8 +206,8 @@ Agent(
 TaskCreate([
   { title: "재무 시뮬레이션 수행", assignee: "financial-planner" },
   { title: "지역 매물 데이터 수집", assignee: "property-researcher" },
-  { title: "매물 TOP 10 선별", assignee: "property-researcher", depends_on: ["재무 시뮬레이션 수행"] },
-  { title: "HTML 리포트 생성", assignee: "strategy-reporter", depends_on: ["재무 시뮬레이션 수행", "매물 TOP 10 선별"] }
+  { title: "시나리오별 매물 필터링 + 개별 파일 저장", assignee: "property-researcher", depends_on: ["재무 시뮬레이션 수행"] },
+  { title: "HTML 분할 생성 + 리포트 조합", assignee: "strategy-reporter", depends_on: ["재무 시뮬레이션 수행", "시나리오별 매물 필터링 + 개별 파일 저장"] }
 ])
 ```
 
@@ -219,8 +235,8 @@ TaskCreate([
 | 팀원 | 출력 경로 |
 |------|----------|
 | financial-planner | `{RUN_DIR}/01_financial_simulation.json` |
-| property-researcher | `{RUN_DIR}/02_property_research.json` |
-| strategy-reporter | `{RUN_DIR}/03_strategies.json` + `{RUN_DIR}/housing_report.html` |
+| property-researcher | `{RUN_DIR}/02_raw/*.json` + `{RUN_DIR}/02_scenarios/*.json` + `{RUN_DIR}/02_property_research.json` (인덱스) |
+| strategy-reporter | `{RUN_DIR}/03_report/*.html` + `{RUN_DIR}/housing_report.html` (Bash cat 조합) |
 
 **리더 모니터링:**
 - 팀원 유휴 알림 수신 시 진행 상황 확인
@@ -230,7 +246,12 @@ TaskCreate([
 ### Phase 4: 결과 검증 및 전달
 
 1. 모든 팀원 작업 완료 대기
-2. `{RUN_DIR}/housing_report.html` 존재 확인
+2. 산출물 존재 확인:
+   - `{RUN_DIR}/02_raw/` 디렉토리에 월별 파일 존재 확인
+   - `{RUN_DIR}/02_scenarios/` 디렉토리에 시나리오별 파일 존재 확인
+   - `{RUN_DIR}/02_property_research.json` 인덱스 파일 존재 확인
+   - `{RUN_DIR}/03_report/` 디렉토리에 HTML 파트 파일 존재 확인
+   - `{RUN_DIR}/housing_report.html` 최종 리포트 존재 + 크기 > 0 확인
 3. 리포트 내용 간략 검증:
    - 월세 TOP 10가 포함되었는지
    - 각 매물에 예상 자산 달성률이 표시되었는지
@@ -255,9 +276,9 @@ TaskCreate([
      ↓
 [financial-planner] → {RUN_DIR}/01_financial_simulation.json
      ↓ (SendMessage: 시뮬레이션 완료)
-[property-researcher] → {RUN_DIR}/02_property_research.json
+[property-researcher] → {RUN_DIR}/02_raw/*.json + {RUN_DIR}/02_scenarios/*.json + {RUN_DIR}/02_property_research.json (인덱스)
      ↓ (SendMessage: 매물 조사 완료)
-[strategy-reporter] → {RUN_DIR}/03_strategies.json + {RUN_DIR}/housing_report.html
+[strategy-reporter] → {RUN_DIR}/03_report/*.html → Bash cat → {RUN_DIR}/housing_report.html
      ↓
 [리더: 검증 + 사용자 전달]
 ```
@@ -279,12 +300,12 @@ TaskCreate([
 ### 정상 흐름
 1. 사용자가 "현재 자산 3억, 목표 5억, 2년 후, 월 수익률 1%, 서울 마포구" 입력
 2. Phase 1에서 user_params.json 저장
-3. Phase 2에서 팀 구성 (3명 + 6개 작업)
+3. Phase 2에서 팀 구성 (3명 + 4개 작업)
 4. Phase 3에서:
    - financial-planner가 9가지 시나리오 시뮬레이션 완료
-   - property-researcher가 마포구 월세 매물 수집 + 시나리오별 필터링
-   - strategy-reporter가 전략 + HTML 리포트 생성
-5. Phase 4에서 리포트 검증 후 사용자에게 전달
+   - property-researcher가 마포구 월세 매물 수집 → 02_raw/*.json + 02_scenarios/*.json + 인덱스 저장
+   - strategy-reporter가 시나리오 파일 읽기 → cashflow 계산 → HTML 분할 생성 → cat 조합
+5. Phase 4에서 02_raw/, 02_scenarios/, 03_report/ 디렉토리 + housing_report.html 검증 후 사용자에게 전달
 6. 예상 결과: `housing_report.html` 생성, 월세 TOP 10 비교표 포함
 
 ### 에러 흐름

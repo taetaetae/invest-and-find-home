@@ -51,25 +51,53 @@ financial-simulation의 9가지 시나리오별 최대 금액을 기준으로 �
 
 - 월세: `deposit_10k <= max_wolse_deposit_10k` AND `monthly_rent_10k <= max_wolse_monthly_10k`인 매물
 - 각 시나리오별로 TOP 10을 선별한다
+- cashflow 계산(보증금 구성, 대출 이자, 월 총 주거비, 남은 투자금)은 수행하지 않는다 — strategy-reporter가 담당
 
 ### 5. 반환 데이터 구조
 
-items 필드 (전월세):
+월별 원본 파일 (`02_raw/{YYYYMM}.json`):
 ```json
 {
-  "unit_name": "아파트명",
-  "dong": "동",
-  "area_sqm": 84.5,
-  "floor": 15,
-  "deposit_10k": 30000,
-  "monthly_rent_10k": 0,
-  "contract_type": "전세|월세",
-  "trade_date": "2025-01-15",
-  "build_year": 2010
+  "year_month": "202604",
+  "region_code": "11440",
+  "wolse_count": 45,
+  "items": [
+    {
+      "unit_name": "아파트명",
+      "dong": "동",
+      "area_sqm": 84.5,
+      "floor": 15,
+      "deposit_10k": 20000,
+      "monthly_rent_10k": 160,
+      "build_year": 2010,
+      "trade_date": "2026-04-01"
+    }
+  ]
 }
 ```
 
-`contract_type`이 "전세"이면 `monthly_rent_10k`는 0이다.
+시나리오별 파일 (`02_scenarios/{scenario_id}.json`):
+```json
+{
+  "scenario_id": "목표12억_수익률2%",
+  "target_asset_10k": 120000,
+  "monthly_rate_pct": 2,
+  "feasible": true,
+  "budget": {
+    "max_wolse_deposit_10k": 28811,
+    "max_wolse_monthly_10k": 253
+  },
+  "matched_count": 42,
+  "top10": [
+    {
+      "rank": 1, "unit_name": "아파트명", "dong": "동",
+      "area_sqm": 84.5, "floor": 15,
+      "deposit_10k": 20000, "monthly_rent_10k": 160,
+      "build_year": 2010, "trade_date": "2026-04-01"
+    }
+  ]
+}
+```
 
 ### 6. 분석 지표
 
@@ -77,32 +105,35 @@ items 필드 (전월세):
 
 | 지표 | 설명 |
 |------|------|
-| 중앙값 | 가격 분포의 중심 |
+| 중앙값 | 보증금/월세 가격 분포의 중심 |
 | 최소/최대 | 가격 범위 |
 | 평수별 분포 | 20평 미만 / 20~30평 / 30평 이상 |
 
+cashflow 계산(보증금 구성, 대출 이자, 월 총 주거비, 남은 투자금)은 strategy-reporter가 담당한다.
+
 ## 출력 형식
 
-`_workspace/02_property_research.json` 에 저장:
+다중 파일 구조로 저장한다. 각 파일은 3KB 이하로 제한한다.
 
-```json
-{
-  "region": { "name": "서울 마포구", "code": "11440" },
-  "search_period": ["202602", "202603", "202604"],
-  "data_by_type": {
-    "apartment": {
-      "wolse": { "count": 0, "items": [], "summary": {} }
-    },
-    "officetel": "조회 금지",
-    "villa": "조회 금지"
-  },
-  "filtered_by_scenario": {
-    "시나리오1": {
-      "affordable_wolse": []
-    }
-  }
-}
+### 파일 구조
 ```
+{RUN_DIR}/
+├── 02_raw/
+│   ├── 202602.json    # 월별 원본 월세 매물
+│   ├── 202603.json
+│   └── 202604.json
+├── 02_scenarios/
+│   ├── 목표12억_수익률2%.json   # 시나리오별 TOP 10
+│   ├── 목표12억_수익률3%.json
+│   └── ...
+└── 02_property_research.json   # 인덱스 파일 (메타데이터 + 파일 경로 목록)
+```
+
+### 점진적 저장 규칙
+1. MCP 응답을 받으면 즉시 월별 파일에 저장한다 (메모리에 쌓지 않음)
+2. 시나리오별 필터링 결과도 즉시 개별 파일에 저장한다
+3. 인덱스 파일은 마지막에 생성한다
+4. cashflow_comment는 생성하지 않는다 — strategy-reporter가 담당
 
 ## 주의사항
 
