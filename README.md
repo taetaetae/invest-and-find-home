@@ -125,6 +125,10 @@ invest-and-find-home/
 └── .envrc                         # 환경변수 설정
 ```
 
+## 샘플 결과물
+
+![샘플 리포트](sample.png)
+
 ## 라이선스
 
 이 프로젝트의 MCP 서버(`mcp-servers/real-estate-mcp/`)는 MIT 라이선스를 따릅니다.
