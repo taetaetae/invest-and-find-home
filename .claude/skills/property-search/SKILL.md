@@ -1,47 +1,54 @@
 ---
 name: property-search
-description: "한국 부동산 아파트 월세 매물 검색, 지역별 시세 조회, 가격대별 매물 필터링. real-estate-mcp를 활용한 부동산 매물 조사 작업에 반드시 이 스킬을 사용할 것. 아파트 월세 데이터만 조회."
+description: "한국 부동산 아파트 월세 매물 검색, 지역별 시세 조회, 가격대별 매물 필터링. naver-land-mcp를 활용한 부동산 매물 조사 작업에 반드시 이 스킬을 사용할 것. 아파트 월세 데이터만 조회."
 ---
 
 # Property Search
 
-real-estate-mcp를 활용하여 지역별 월세 실제 매물 데이터를 수집하고 분석하는 스킬.
+naver-land-mcp를 활용하여 네이버 부동산에 현재 등록된 월세 매물 데이터를 수집하고 분석하는 스킬.
+
+## 데이터 소스
+
+**네이버 부동산** (new.land.naver.com) — 현재 등록된 매물(호가) 기반.
+- 과거 실거래가가 아닌, 지금 시장에 나와 있는 매물을 조회한다
+- 호가(asking price)이므로 실제 계약가와 다를 수 있다
+- API 키 불필요
 
 ## 조사 워크플로우
 
 ### 1. 지역 코드 확인
 
 ```
-get_region_code(query="마포구") → region_code="11440"
+naver_search_region(query="마포구") → cortar_no="1144000000"
 ```
 
-사용자가 "서울 마포구", "마포", "마포구 공덕동" 등 다양한 형태로 입력할 수 있다. get_region_code는 자유형식 텍스트를 받아 5자리 법정동 코드를 반환한다.
+사용자가 "서울 마포구", "마포", "마포구 공덕동" 등 다양한 형태로 입력할 수 있다. naver_search_region은 자유형식 텍스트를 받아 cortarNo 코드를 반환한다.
 
-### 2. 데이터 수집 범위
+주의: 여러 결과가 반환되면 사용자에게 확인 후 선택한다.
 
-최근 3개월 데이터를 수집한다. 이유: 단일 월 데이터는 표본이 적어 시세 왜곡 가능성이 있다.
+### 2. 데이터 수집
+
+현재 등록된 매물을 한 번에 수집한다. 시점 파라미터가 필요 없다.
 
 ```
-get_current_year_month() → "202604"
-→ 조회 대상: "202602", "202603", "202604"
+naver_search_listings(cortar_no="1144000000", trade_type="B2")
 ```
+
+- `trade_type="B2"`: 전월세 매물 조회 (월세만 필터링은 응답에서 수행)
+- 응답에서 `monthly_rent_10k > 0`인 매물만 사용 (전세 제외)
 
 ### 3. 매물 유형별 조회
 
-각 유형별로 월세 데이터를 수집한다:
-
 | 도구 | 대상 | 비고 |
 |------|------|------|
-| `get_apartment_rent` | 아파트 | 유일하게 사용할 매물 조회 도구 |
+| `naver_search_listings` | 아파트 월세 | 유일하게 사용할 매물 조회 도구 |
 
-오피스텔(`get_officetel_rent`), 빌라(`get_villa_rent`)는 사용 금지.
-
-파라미터: `region_code`, `year_month`, `num_of_rows=100`, `min_area_sqm` (선택), `max_area_sqm` (선택)
+파라미터: `cortar_no`, `trade_type="B2"`, `min_area_sqm` (선택), `max_area_sqm` (선택), `max_complexes=50`
 
 수집 시 `monthly_rent_10k == 0`인 전세 매물은 반드시 제외하고 월세 매물만 필터링한다.
 
 평수 필터링:
-- `min_area_sqm`, `max_area_sqm`로 전용면적 범위를 지정할 수 있다 (클라이언트 측 필터링)
+- `min_area_sqm`, `max_area_sqm`로 전용면적 범위를 지정할 수 있다 (MCP 도구 파라미터로 전달)
 - 평수→㎡ 변환: 1평 = 3.3058㎡ (예: 30평 = 99.17㎡, 40평 = 132.23㎡)
 - user_params.json에 `min_area_sqm`/`max_area_sqm`이 있으면 MCP 도구 호출 시 전달한다
 
@@ -55,22 +62,29 @@ financial-simulation의 9가지 시나리오별 최대 금액을 기준으로 �
 
 ### 5. 반환 데이터 구조
 
-월별 원본 파일 (`02_raw/{YYYYMM}.json`):
+원본 매물 파일 (`02_raw/listings.json`):
 ```json
 {
-  "year_month": "202604",
-  "region_code": "11440",
+  "source": "naver",
+  "region": { "name": "마포구", "cortar_no": "1144000000" },
+  "collected_at": "2026-04-10",
   "wolse_count": 45,
   "items": [
     {
-      "unit_name": "아파트명",
-      "dong": "동",
+      "article_no": "12345",
+      "complex_name": "래미안 마포리버뷰",
+      "article_name": "103동",
       "area_sqm": 84.5,
-      "floor": 15,
+      "area_pyeong": 25.6,
+      "floor_info": "15/25",
       "deposit_10k": 20000,
       "monthly_rent_10k": 160,
-      "build_year": 2010,
-      "trade_date": "2026-04-01"
+      "direction": "남향",
+      "confirm_date": "2026-04-01",
+      "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890",
+      "realtor_name": "OO공인중개사",
+      "description": "매물 설명",
+      "tag_list": ["역세권"]
     }
   ]
 }
@@ -90,10 +104,16 @@ financial-simulation의 9가지 시나리오별 최대 금액을 기준으로 �
   "matched_count": 42,
   "top10": [
     {
-      "rank": 1, "unit_name": "아파트명", "dong": "동",
-      "area_sqm": 84.5, "floor": 15,
-      "deposit_10k": 20000, "monthly_rent_10k": 160,
-      "build_year": 2010, "trade_date": "2026-04-01"
+      "rank": 1,
+      "article_no": "12345",
+      "complex_name": "래미안 마포리버뷰",
+      "area_sqm": 84.5,
+      "area_pyeong": 25.6,
+      "floor_info": "15/25",
+      "deposit_10k": 20000,
+      "monthly_rent_10k": 160,
+      "confirm_date": "2026-04-01",
+      "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890"
     }
   ]
 }
@@ -119,9 +139,7 @@ cashflow 계산(보증금 구성, 대출 이자, 월 총 주거비, 남은 투�
 ```
 {RUN_DIR}/
 ├── 02_raw/
-│   ├── 202602.json    # 월별 원본 월세 매물
-│   ├── 202603.json
-│   └── 202604.json
+│   └── listings.json      # 현재 매물 전체 (월세만)
 ├── 02_scenarios/
 │   ├── 목표12억_수익률2%.json   # 시나리오별 TOP 10
 │   ├── 목표12억_수익률3%.json
@@ -130,7 +148,7 @@ cashflow 계산(보증금 구성, 대출 이자, 월 총 주거비, 남은 투�
 ```
 
 ### 점진적 저장 규칙
-1. MCP 응답을 받으면 즉시 월별 파일에 저장한다 (메모리에 쌓지 않음)
+1. naver_search_listings 응답을 받으면 즉시 파일에 저장한다 (메모리에 쌓지 않음)
 2. 시나리오별 필터링 결과도 즉시 개별 파일에 저장한다
 3. 인덱스 파일은 마지막에 생성한다
 4. cashflow_comment는 생성하지 않는다 — strategy-reporter가 담당
@@ -138,6 +156,7 @@ cashflow 계산(보증금 구성, 대출 이자, 월 총 주거비, 남은 투�
 ## 주의사항
 
 - 가격 단위는 항상 만원(10k)이다. `deposit_10k: 30000` = 3억원
-- 취소된 거래(`cdealType == "O"`)는 MCP에서 자동 필터링된다
-- 데이터가 없는 월은 건너뛰고 가용 데이터로 분석한다
+- 네이버 매물 가격은 호가이므로 실제 계약가와 다를 수 있다
+- 데이터가 없으면 `max_complexes`를 늘리거나 인접 지역 확대를 제안한다
 - 매물이 극히 적으면(5건 미만) 인접 지역 확대를 제안한다
+- 각 매물에 `article_url` (네이버 부동산 링크)이 포함되어 실제 매물을 확인할 수 있다

@@ -146,22 +146,24 @@ Agent(
   team_name: "housing-advisor-team",
   prompt: "당신은 부동산 매물 조사 전문가입니다.
     {RUN_DIR}/00_input/user_params.json을 읽고 property-search 스킬을 참조하여
-    지역별 월세 매물을 조사하세요.
+    네이버 부동산에 현재 등록된 월세 매물을 조사하세요.
     중요: 월세 데이터만 조회하세요. 매매(trades) 데이터는 조회하지 마세요.
-    사용할 MCP 도구: get_apartment_rent만 사용. 오피스텔/빌라 조회 금지.
+    사용할 MCP 도구: naver_search_region으로 지역 코드를 얻고,
+    naver_search_listings로 현재 매물을 수집하세요. 오피스텔/빌라 조회 금지.
     전세 매물은 제외하고 월세 매물(monthly_rent_10k > 0)만 수집하세요.
     user_params.json에 min_area_sqm/max_area_sqm이 있으면 MCP 도구 호출 시 해당 파라미터를 전달하세요.
 
     [중요] 다중 파일 점진적 저장 규칙:
     1. mkdir -p {RUN_DIR}/02_raw {RUN_DIR}/02_scenarios
-    2. 월별로 get_apartment_rent 호출 후 즉시 {RUN_DIR}/02_raw/{YYYYMM}.json에 Write (월세만 필터링)
+    2. naver_search_listings 호출 후 즉시 {RUN_DIR}/02_raw/listings.json에 Write (월세만 필터링)
+       — 과거 월별 조회가 아님. 현재 매물을 한 번에 수집한다.
     3. financial-planner 결과({RUN_DIR}/01_financial_simulation.json) 읽은 후,
        시나리오별로 필터링하여 즉시 {RUN_DIR}/02_scenarios/{scenario_id}.json에 Write
     4. 마지막에 {RUN_DIR}/02_property_research.json (인덱스 파일)을 Write
     각 Write의 content는 3KB(100줄) 이하로 제한하세요.
 
     [중요] cashflow_comment를 생성하지 마세요.
-    매물의 기본 정보(단지명, 면적, 보증금, 월세, 층수, 건축년도)만 저장하세요.
+    매물의 기본 정보(단지명, 면적, 보증금, 월세, 층수, 네이버 링크)만 저장하세요.
     cashflow 계산은 strategy-reporter가 담당합니다.
 
     중요: 투자금이 0원이 되는(자기자본 전액을 주거에 투입하는) 방안은 제외하세요.
@@ -235,7 +237,7 @@ TaskCreate([
 | 팀원 | 출력 경로 |
 |------|----------|
 | financial-planner | `{RUN_DIR}/01_financial_simulation.json` |
-| property-researcher | `{RUN_DIR}/02_raw/*.json` + `{RUN_DIR}/02_scenarios/*.json` + `{RUN_DIR}/02_property_research.json` (인덱스) |
+| property-researcher | `{RUN_DIR}/02_raw/listings.json` + `{RUN_DIR}/02_scenarios/*.json` + `{RUN_DIR}/02_property_research.json` (인덱스) |
 | strategy-reporter | `{RUN_DIR}/03_report/*.html` + `{RUN_DIR}/housing_report.html` (Bash cat 조합) |
 
 **리더 모니터링:**
@@ -247,7 +249,7 @@ TaskCreate([
 
 1. 모든 팀원 작업 완료 대기
 2. 산출물 존재 확인:
-   - `{RUN_DIR}/02_raw/` 디렉토리에 월별 파일 존재 확인
+   - `{RUN_DIR}/02_raw/listings.json` 매물 파일 존재 확인
    - `{RUN_DIR}/02_scenarios/` 디렉토리에 시나리오별 파일 존재 확인
    - `{RUN_DIR}/02_property_research.json` 인덱스 파일 존재 확인
    - `{RUN_DIR}/03_report/` 디렉토리에 HTML 파트 파일 존재 확인
@@ -259,6 +261,10 @@ TaskCreate([
 4. 사용자에게 결과 요약 보고:
    - 월세 TOP 10 한줄 요약
    - `{RUN_DIR}/housing_report.html` 파일 경로
+5. 리포트를 크롬 브라우저로 자동 열기:
+   ```bash
+   open -a "Google Chrome" {RUN_DIR}/housing_report.html
+   ```
 
 ### Phase 5: 정리
 
@@ -276,7 +282,7 @@ TaskCreate([
      ↓
 [financial-planner] → {RUN_DIR}/01_financial_simulation.json
      ↓ (SendMessage: 시뮬레이션 완료)
-[property-researcher] → {RUN_DIR}/02_raw/*.json + {RUN_DIR}/02_scenarios/*.json + {RUN_DIR}/02_property_research.json (인덱스)
+[property-researcher] → {RUN_DIR}/02_raw/listings.json + {RUN_DIR}/02_scenarios/*.json + {RUN_DIR}/02_property_research.json (인덱스)
      ↓ (SendMessage: 매물 조사 완료)
 [strategy-reporter] → {RUN_DIR}/03_report/*.html → Bash cat → {RUN_DIR}/housing_report.html
      ↓
@@ -287,7 +293,7 @@ TaskCreate([
 
 | 상황 | 전략 |
 |------|------|
-| MCP 서버 연결 실패 | 사용자에게 DATA_GO_KR_API_KEY 환경변수 설정 확인 요청 |
+| MCP 서버 연결 실패 | 네이버 부동산 API 접속 상태 확인 (HTTP 403/429 등) |
 | financial-planner 실패 | 1회 재시도. 재실패 시 기본 대출 금리(연 4%)로 수동 계산 |
 | property-researcher 실패 | 1회 재시도. 재실패 시 매물 없이 시뮬레이션 결과만으로 리포트 생성 |
 | strategy-reporter 실패 | 1회 재시도. 재실패 시 리더가 직접 간이 리포트 생성 |
@@ -303,9 +309,9 @@ TaskCreate([
 3. Phase 2에서 팀 구성 (3명 + 4개 작업)
 4. Phase 3에서:
    - financial-planner가 9가지 시나리오 시뮬레이션 완료
-   - property-researcher가 마포구 월세 매물 수집 → 02_raw/*.json + 02_scenarios/*.json + 인덱스 저장
+   - property-researcher가 마포구 현재 매물 수집 → 02_raw/listings.json + 02_scenarios/*.json + 인덱스 저장
    - strategy-reporter가 시나리오 파일 읽기 → cashflow 계산 → HTML 분할 생성 → cat 조합
-5. Phase 4에서 02_raw/, 02_scenarios/, 03_report/ 디렉토리 + housing_report.html 검증 후 사용자에게 전달
+5. Phase 4에서 02_raw/listings.json, 02_scenarios/, 03_report/ 디렉토리 + housing_report.html 검증 후 사용자에게 전달
 6. 예상 결과: `housing_report.html` 생성, 월세 TOP 10 비교표 포함
 
 ### 에러 흐름
