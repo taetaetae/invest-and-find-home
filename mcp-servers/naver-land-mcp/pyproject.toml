@@ -1,0 +1,36 @@
+[project]
+name = "naver_land"
+version = "0.1.0"
+description = "네이버 부동산 현재 매물 기반 MCP 서버"
+readme = {text = "", content-type = "text/plain"}
+authors = [
+    { name = "tae0y[박태영]", email = "tae0yp@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "curl-cffi>=0.15.0",
+    "httpx>=0.28.0",
+    "mcp[cli]>=1.0.0",
+    "playwright>=1.50.0",
+]
+
+[project.scripts]
+naver-land-mcp = "naver_land.server:main"
+
+[build-system]
+requires = ["uv_build>=0.9.28,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+prerelease = "if-necessary-or-explicit"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

@@ -1,15 +1,12 @@
 {
   "mcpServers": {
-    "real-estate": {
+    "naver-land": {
       "command": "uv",
       "args": [
         "run",
-        "--directory", "./mcp-servers/real-estate-mcp",
-        "python", "src/real_estate/mcp_server/server.py"
-      ],
-      "env": {
-        "DATA_GO_KR_API_KEY": "${DATA_GO_KR_API_KEY}"
-      }
+        "--directory", "./mcp-servers/naver-land-mcp",
+        "python", "src/naver_land/server.py"
+      ]
     }
   }
 }
