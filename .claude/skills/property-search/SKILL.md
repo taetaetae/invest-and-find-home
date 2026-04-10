@@ -1,6 +1,6 @@
 ---
 name: property-search
-description: "한국 부동산 월세 매물 검색, 지역별 시세 조회, 가격대별 매물 필터링. real-estate-mcp를 활용한 모든 부동산 매물 조사 작업에 반드시 이 스킬을 사용할 것. 아파트, 오피스텔, 빌라 월세 데이터 조회 포함."
+description: "한국 부동산 아파트 월세 매물 검색, 지역별 시세 조회, 가격대별 매물 필터링. real-estate-mcp를 활용한 부동산 매물 조사 작업에 반드시 이 스킬을 사용할 것. 아파트 월세 데이터만 조회."
 ---
 
 # Property Search
@@ -32,13 +32,13 @@ get_current_year_month() → "202604"
 
 | 도구 | 대상 | 비고 |
 |------|------|------|
-| `get_apartment_rent` | 아파트 | 가장 거래량 많음 |
-| `get_officetel_rent` | 오피스텔 | 1인 가구 선호 |
-| `get_villa_rent` | 빌라/연립 | 가격 저렴 |
+| `get_apartment_rent` | 아파트 | 유일하게 사용할 매물 조회 도구 |
+
+오피스텔(`get_officetel_rent`), 빌라(`get_villa_rent`)는 사용 금지.
 
 파라미터: `region_code`, `year_month`, `num_of_rows=100`, `min_area_sqm` (선택), `max_area_sqm` (선택)
 
-수집 시 `contract_type`이 "전세"인 매물은 제외하고 월세 매물만 필터링한다.
+수집 시 `monthly_rent_10k == 0`인 전세 매물은 반드시 제외하고 월세 매물만 필터링한다.
 
 평수 필터링:
 - `min_area_sqm`, `max_area_sqm`로 전용면적 범위를 지정할 수 있다 (클라이언트 측 필터링)
@@ -93,8 +93,8 @@ items 필드 (전월세):
     "apartment": {
       "wolse": { "count": 0, "items": [], "summary": {} }
     },
-    "officetel": { ... },
-    "villa": { ... }
+    "officetel": "조회 금지",
+    "villa": "조회 금지"
   },
   "filtered_by_scenario": {
     "시나리오1": {

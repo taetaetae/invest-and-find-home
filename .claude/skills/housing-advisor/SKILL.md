@@ -148,8 +148,8 @@ Agent(
     {RUN_DIR}/00_input/user_params.json을 읽고 property-search 스킬을 참조하여
     지역별 월세 매물을 조사하세요.
     중요: 월세 데이터만 조회하세요. 매매(trades) 데이터는 조회하지 마세요.
-    사용할 MCP 도구: get_apartment_rent, get_officetel_rent, get_villa_rent만 사용.
-    전세 매물은 제외하고 월세 매물만 수집하세요.
+    사용할 MCP 도구: get_apartment_rent만 사용. 오피스텔/빌라 조회 금지.
+    전세 매물은 제외하고 월세 매물(monthly_rent_10k > 0)만 수집하세요.
     user_params.json에 min_area_sqm/max_area_sqm이 있으면 MCP 도구 호출 시 해당 파라미터를 전달하세요.
     financial-planner의 시뮬레이션 결과({RUN_DIR}/01_financial_simulation.json)가
     준비되면 읽어서 9가지 시나리오별 최대 가능 금액 기준으로 매물을 필터링하세요.
