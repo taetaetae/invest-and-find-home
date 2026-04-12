@@ -57,7 +57,8 @@ naver_search_listings(cortar_no="1144000000", trade_type="B2")
 financial-simulation의 9가지 시나리오별 최대 금액을 기준으로 필터링한다:
 
 - 월세: `deposit_10k <= max_wolse_deposit_10k` AND `monthly_rent_10k <= max_wolse_monthly_10k`인 매물
-- 각 시나리오별로 TOP 10을 선별한다
+- 사용자가 월세 상한선(`max_monthly_rent_10k`)을 지정한 경우, `monthly_rent_10k <= max_monthly_rent_10k` 조건도 추가 적용
+- 각 시나리오별로 TOP 20을 선별한다
 - cashflow 계산(보증금 구성, 대출 이자, 월 총 주거비, 남은 투자금)은 수행하지 않는다 — strategy-reporter가 담당
 
 ### 5. 반환 데이터 구조
@@ -79,6 +80,7 @@ financial-simulation의 9가지 시나리오별 최대 금액을 기준으로 �
       "floor_info": "15/25",
       "deposit_10k": 20000,
       "monthly_rent_10k": 160,
+      "maintenance_fee_10k": 41,
       "direction": "남향",
       "confirm_date": "2026-04-01",
       "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890",
@@ -102,7 +104,7 @@ financial-simulation의 9가지 시나리오별 최대 금액을 기준으로 �
     "max_wolse_monthly_10k": 253
   },
   "matched_count": 42,
-  "top10": [
+  "top20": [
     {
       "rank": 1,
       "article_no": "12345",
@@ -112,6 +114,7 @@ financial-simulation의 9가지 시나리오별 최대 금액을 기준으로 �
       "floor_info": "15/25",
       "deposit_10k": 20000,
       "monthly_rent_10k": 160,
+      "maintenance_fee_10k": 41,
       "confirm_date": "2026-04-01",
       "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890"
     }
@@ -141,7 +144,7 @@ cashflow 계산(보증금 구성, 대출 이자, 월 총 주거비, 남은 투�
 ├── 02_raw/
 │   └── listings.json      # 현재 매물 전체 (월세만)
 ├── 02_scenarios/
-│   ├── 목표12억_수익률2%.json   # 시나리오별 TOP 10
+│   ├── 목표12억_수익률2%.json   # 시나리오별 TOP 20
 │   ├── 목표12억_수익률3%.json
 │   └── ...
 └── 02_property_research.json   # 인덱스 파일 (메타데이터 + 파일 경로 목록)

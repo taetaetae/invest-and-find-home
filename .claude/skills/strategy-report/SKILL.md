@@ -1,26 +1,27 @@
 ---
 name: strategy-report
-description: "부동산 월세 전략 비교 리포트 생성. 재무 시뮬레이션과 매물 데이터를 종합하여 9가지 시나리오(목표 자산 3가지 × 월 수익률 3가지)별 월세 TOP 10을 HTML 리포트로 작성. 주거 전략, 대출 전략, 투자 전략 비교표, 자산 변화 그래프 포함. 부동산 리포트, 주거 전략 리포트 요청 시 반드시 이 스킬을 사용할 것."
+description: "부동산 월세 전략 비교 리포트 생성. 재무 시뮬레이션과 매물 데이터를 종합하여 9가지 시나리오(목표 자산 3가지 × 월 수익률 3가지)별 월세 TOP 20을 HTML 리포트로 작성. 주거 전략, 대출 전략, 투자 전략 비교표, 자산 변화 그래프 포함. 부동산 리포트, 주거 전략 리포트 요청 시 반드시 이 스킬을 사용할 것."
 ---
 
 # Strategy Report
 
-재무 시뮬레이션의 9가지 시나리오(목표 자산 3가지 × 월 수익률 3가지)별 최대 가능 금액 내에서, 가장 공격적인(비싼) 월세 TOP 10 매물을 추천하는 HTML 리포트를 생성하는 스킬.
+재무 시뮬레이션의 9가지 시나리오(목표 자산 3가지 × 월 수익률 3가지)별 최대 가능 금액 내에서, 가장 공격적인(비싼) 월세 TOP 20 매물을 추천하는 HTML 리포트를 생성하는 스킬.
 
 ## 리포트 원칙
 
-### 1. 구성: 9가지 시나리오별 월세 TOP 10
+### 1. 구성: 9가지 시나리오별 월세 TOP 20
 
-각 시나리오별로 매물을 면적 내림차순으로 정렬하여, 목표 자산에 도달 가능한 범위 내에서 가장 비싼 매물 10개를 선정한다.
+각 시나리오별로 매물을 면적 내림차순으로 정렬하여, 목표 자산에 도달 가능한 범위 내에서 가장 비싼 매물 20개를 선정한다.
 
 ### 2. 각 매물에 포함할 정보
 
 ```
 - 매물명 (네이버 부동산 링크), 층수, 면적(평수)
 - 월세: 보증금 / 월세
+- 관리비 (월)
 - 보증금 구성: 자기자본 + 대출 내역
 - 대출 월이자 (회사 지원 반영 후 실질 부담액)
-- 월 총 주거비 (대출이자 + 월세)
+- 월 총 주거비 (대출이자 + 월세 + 관리비)
 - 남은 투자금
 - 목표일 예상 자산 (복리 계산)
 - 목표 달성률 (%)
@@ -32,10 +33,15 @@ cashflow 계산 공식:
 자기자본_투입 = 보증금 - 대출_금액
 남은_투자금 = 총자산 - 자기자본_투입
 대출_월이자 = 대출_금액 × max(0, 대출금리 - 회사지원금리) / 100 / 12
-월_총_주거비 = 대출_월이자 + 월세
+월_총_주거비 = 대출_월이자 + 월세 + 관리비
 목표일_예상자산 = 남은_투자금 × (1 + 월수익률/100)^남은개월수 (매월 주거비 차감 복리)
 달성률 = 목표일_예상자산 / 목표자산 × 100
 ```
+
+관리비 참고:
+- `maintenance_fee_10k` — 네이버 부동산 단지 상세에서 평형별 연평균 관리비를 조회한다
+- 관리비가 0이면 리포트에 "-" 로 표시한다
+- 관리비는 매물별로 다르므로 시나리오 매트릭스에는 포함하지 않고 "관리비 별도" 주석을 표시한다
 
 ### 3. 매물 정렬 규칙
 
@@ -77,7 +83,7 @@ header h1{font-size:24px;margin-bottom:12px}
 .scenario-section h2{font-size:18px;margin-bottom:4px;color:#1a237e}
 .scenario-meta{font-size:13px;color:#666;margin-bottom:16px}
 .report-container{overflow-x:auto}
-.report-table{min-width:1200px;width:100%;border-collapse:collapse;font-size:13px}
+.report-table{min-width:1300px;width:100%;border-collapse:collapse;font-size:13px}
 .report-table th{background:#f5f5f5;padding:10px 8px;text-align:center;border:1px solid #e0e0e0;font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
 .report-table td{padding:8px;text-align:center;border:1px solid #e0e0e0;white-space:nowrap}
 .report-table tbody tr:hover{background:#f0f4ff}
@@ -131,7 +137,7 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <!-- 셀 내용: 보증금 X억<br>월세 Y만 + 이자 Z만<br>= 월 주거비 W만 -->
 </tbody>
 </table>
-<p style="font-size:12px;color:#888;margin-top:8px">* 보증금 = 최대 가능 보증금, 월세 = 최대 가능 월세 (대출이자 차감 후)</p>
+<p style="font-size:12px;color:#888;margin-top:8px">* 보증금 = 최대 가능 보증금, 월세 = 최대 가능 월세 (대출이자 차감 후) / 관리비 별도 (매물별 상이)</p>
 </div>
 
 <!-- 3. 대출 조건 요약 카드 -->
@@ -144,7 +150,7 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 </div>
 </div>
 
-<!-- 4. 시나리오별 매물 TOP 10 (9개 반복) -->
+<!-- 4. 시나리오별 매물 TOP 20 (9개 반복) -->
 <div class="scenario-section">
 <h2>시나리오: 목표 {목표}억 / 월 수익률 {수익률}%</h2>
 <div class="scenario-meta">여유도: <span class="badge-{level}">{label}</span> | 최대 보증금: {보증금} | 최대 월세: {월세} | 매물 {N}건</div>
@@ -157,6 +163,7 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <th data-sort-type="number">면적(평)</th>
 <th data-sort-type="text">등록일</th>
 <th data-sort-type="text">보증금/월세</th>
+<th data-sort-type="number">관리비</th>
 <th data-sort-type="text">보증금 구성</th>
 <th data-sort-type="number">대출이자(월)</th>
 <th data-sort-type="number">월 주거비</th>
@@ -172,6 +179,7 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <td>{면적}</td>
 <td>{등록일}</td>
 <td>{보증금}/{월세}</td>
+<td>{관리비}만</td>
 <td>대출 {대출액}<br>자기자본 {자기자본}</td>
 <td>{대출이자}만</td>
 <td>{월주거비}만</td>
@@ -179,7 +187,7 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <td><div class="bar-container"><div class="bar-fill bar-{level}" style="width:{pct}%">{예상자산}</div></div></td>
 <td><span class="badge-{level}">{달성률}%</span></td>
 </tr>
-<!-- ... 10건 반복 -->
+<!-- ... 20건 반복 -->
 </tbody>
 </table>
 </div>

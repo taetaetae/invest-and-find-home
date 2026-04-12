@@ -1,6 +1,6 @@
 ---
 name: strategy-reporter
-description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬레이션과 매물 데이터를 종합하여 월세 TOP 10 전략 시나리오를 구성하고 비교 리포트를 생성한다."
+description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬레이션과 매물 데이터를 종합하여 월세 TOP 20 전략 시나리오를 구성하고 비교 리포트를 생성한다."
 ---
 
 # Strategy Reporter — 전략 종합 및 리포트 생성 전문가
@@ -53,7 +53,7 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
 
 ### 월 비용
 - 대출_월이자 = 대출_금액 × max(0, loan_annual_rate_pct - company_supported_rate_pct) / 100 / 12
-- 월_총_주거비 = 대출_월이자 + monthly_rent_10k
+- 월_총_주거비 = 대출_월이자 + monthly_rent_10k + maintenance_fee_10k
 
 ### 자산 전망
 - 월_투자수익 = 남은_투자금 × monthly_rate_pct / 100
@@ -96,9 +96,9 @@ strategy-report 스킬의 참조 HTML 템플릿에서 `<!DOCTYPE html>`부터 `<
 ### Step 3: 시나리오별 처리 (반복)
 각 시나리오 파일에 대해:
 1. `{RUN_DIR}/02_scenarios/{scenario_id}.json` 읽기
-2. 해당 시나리오의 TOP 10 매물에 대해 cashflow 계산
+2. 해당 시나리오의 TOP 20 매물에 대해 cashflow 계산
 3. `.scenario-section` 안에 `.report-table` 테이블 생성
-   - 테이블 헤더: `#, 매물명, 층, 면적(평), 등록일, 보증금/월세, 보증금 구성, 대출이자(월), 월 주거비, 투자가능금, 예상자산, 달성률`
+   - 테이블 헤더: `#, 매물명, 층, 면적(평), 등록일, 보증금/월세, 관리비, 보증금 구성, 대출이자(월), 월 주거비, 투자가능금, 예상자산, 달성률`
    - 모든 `<th>`에 `data-sort-type="number"` 또는 `data-sort-type="text"` 속성 필수
    - 매물명은 `<a href="{article_url}" target="_blank">` 링크
    - 예상자산은 `.bar-container` > `.bar-fill` 바 차트

@@ -5,7 +5,7 @@ description: "부동산 월세 전략 어드바이저. 자산 증식 목표, 대
 
 # Housing Advisor — 부동산 월세 전략 오케스트레이터
 
-목표 자산에 도달 가능한 범위 내에서, 가장 공격적인(비싼) 월세 매물 TOP 10을 추천하는 에이전트 팀 오케스트레이터.
+목표 자산에 도달 가능한 범위 내에서, 가장 공격적인(비싼) 월세 매물 TOP 20을 추천하는 에이전트 팀 오케스트레이터.
 
 ## 실행 모드: 에이전트 팀
 
@@ -75,11 +75,20 @@ mkdir -p "$RUN_DIR/00_input"
 > 그리고 희망하는 평수 범위가 있으면 알려주세요.
 > (예: 서울 마포구, 30평 이상 / 성남 분당구, 25~35평)"
 
-→ `region` 수집. `housing_type`은 `"월세"`로 고정한다. 월세 매물을 분석하여 시나리오별 TOP 10을 추천한다.
+→ `region` 수집. `housing_type`은 `"월세"`로 고정한다. 월세 매물을 분석하여 시나리오별 TOP 20을 추천한다.
 → `min_area_pyeong`, `max_area_pyeong` 수집 (선택). 미지정 시 null.
 → 평수→㎡ 변환: 1평 = 3.3058㎡. `min_area_sqm = min_area_pyeong * 3.3058`, `max_area_sqm = max_area_pyeong * 3.3058`
 
-**Step 5: 확인 및 시작**
+**Step 5: 월세 상한선 (옵션)**
+
+> "혹시 월세 상한선이 있나요?
+> 이 금액을 넘는 매물은 제외하고 검색합니다.
+> (예: 월세 300만원까지만 / 없으면 '없음')"
+
+→ `max_monthly_rent_10k` 수집. "없음"이면 `null`
+→ 있으면: 만원 단위로 변환 (예: 300만원 → 300)
+
+**Step 6: 확인 및 시작**
 
 수집한 정보를 요약하여 보여주고 확인을 받는다:
 
@@ -91,6 +100,7 @@ mkdir -p "$RUN_DIR/00_input"
 > - 회사 이자 지원: 대출 A억까지 연 B% 지원
 > - 지역: OO구, 월세
 > - 희망 평수: N평 이상 ~ M평 이하 (또는 '제한 없음')
+> - 월세 상한선: N만원 (또는 '제한 없음')
 >
 > 이대로 분석을 시작할까요? 수정할 부분이 있으면 말씀해주세요."
 
@@ -106,6 +116,7 @@ mkdir -p "$RUN_DIR/00_input"
   "housing_type": "월세",
   "min_area_sqm": null,
   "max_area_sqm": null,
+  "max_monthly_rent_10k": null,
   "company_interest_support": {
     "available": false,
     "loan_limit_10k": 0,
@@ -152,6 +163,8 @@ Agent(
     naver_search_listings로 현재 매물을 수집하세요. 오피스텔/빌라 조회 금지.
     전세 매물은 제외하고 월세 매물(monthly_rent_10k > 0)만 수집하세요.
     user_params.json에 min_area_sqm/max_area_sqm이 있으면 MCP 도구 호출 시 해당 파라미터를 전달하세요.
+    user_params.json에 max_monthly_rent_10k이 있으면(null이 아니면), 시나리오별 필터링 시
+    monthly_rent_10k <= max_monthly_rent_10k 조건을 추가 적용하세요.
 
     [중요] 다중 파일 점진적 저장 규칙:
     1. mkdir -p {RUN_DIR}/02_raw {RUN_DIR}/02_scenarios
@@ -168,7 +181,7 @@ Agent(
 
     중요: 투자금이 0원이 되는(자기자본 전액을 주거에 투입하는) 방안은 제외하세요.
     해당 조건에서 매물이 없으면 '조건에 맞는 매물 없음'으로 표시하세요.
-    각 시나리오별로 월세 매물 중 가장 비싼(공격적인) 매물 TOP 10을 선별하세요.
+    각 시나리오별로 월세 매물 중 가장 비싼(공격적인) 매물 TOP 20을 선별하세요.
     완료 후 리더에게 알려주세요."
 )
 
@@ -185,7 +198,8 @@ Agent(
     4. strategy-report 스킬을 참조하여 각 매물별 cashflow 계산:
        - 보증금 구성 (자기자본 + 대출 내역)
        - 대출 이자 (회사 지원 반영 후 실질 월 부담액)
-       - 월세 금액과 월 총 주거비 (이자+월세)
+       - 관리비 (네이버 부동산 단지 상세에서 평형별 조회)
+       - 월세 금액과 월 총 주거비 (이자+월세+관리비)
        - 남은 투자금과 예상 투자 수익
        - 목표일 예상 자산과 달성률
     5. 투자금이 0원이 되는 방안은 제외하세요.
@@ -255,11 +269,11 @@ TaskCreate([
    - `{RUN_DIR}/03_report/` 디렉토리에 HTML 파트 파일 존재 확인
    - `{RUN_DIR}/housing_report.html` 최종 리포트 존재 + 크기 > 0 확인
 3. 리포트 내용 간략 검증:
-   - 월세 TOP 10가 포함되었는지
+   - 월세 TOP 20이 포함되었는지
    - 각 매물에 예상 자산 달성률이 표시되었는지
    - 금액 계산에 명백한 오류가 없는지
 4. 사용자에게 결과 요약 보고:
-   - 월세 TOP 10 한줄 요약
+   - 월세 TOP 20 한줄 요약
    - `{RUN_DIR}/housing_report.html` 파일 경로
 5. 리포트를 크롬 브라우저로 자동 열기:
    ```bash
@@ -312,7 +326,7 @@ TaskCreate([
    - property-researcher가 마포구 현재 매물 수집 → 02_raw/listings.json + 02_scenarios/*.json + 인덱스 저장
    - strategy-reporter가 시나리오 파일 읽기 → cashflow 계산 → HTML 분할 생성 → cat 조합
 5. Phase 4에서 02_raw/listings.json, 02_scenarios/, 03_report/ 디렉토리 + housing_report.html 검증 후 사용자에게 전달
-6. 예상 결과: `housing_report.html` 생성, 월세 TOP 10 비교표 포함
+6. 예상 결과: `housing_report.html` 생성, 월세 TOP 20 비교표 포함
 
 ### 에러 흐름
 1. Phase 3에서 property-researcher가 MCP 호출 실패

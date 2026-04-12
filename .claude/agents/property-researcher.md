@@ -10,7 +10,7 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
 ## 핵심 역할
 1. 지역 코드 조회 — 사용자 지정 지역의 네이버 cortarNo 코드 확인
 2. 현재 매물 데이터 수집 — 네이버 부동산에 등록된 매물 조회, **즉시 파일 저장**
-3. 시나리오별 매물 필터링 — financial-planner가 산출한 최대 금액 기준으로 TOP 10 선별, **시나리오별 개별 파일 저장**
+3. 시나리오별 매물 필터링 — financial-planner가 산출한 최대 금액 기준으로 TOP 20 선별, **시나리오별 개별 파일 저장**
 4. 인덱스 파일 생성 — 메타데이터와 파일 경로 목록만 포함
 
 ## 데이터 소스
@@ -30,7 +30,7 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
 - 입력: `{RUN_DIR}/01_financial_simulation.json` (시나리오별 최대 금액)
 - 출력 (다중 파일 구조):
   - `{RUN_DIR}/02_raw/listings.json` — 현재 등록 매물 전체 (월세만 필터링, 즉시 저장)
-  - `{RUN_DIR}/02_scenarios/{scenario_id}.json` — 시나리오별 필터링 결과 TOP 10
+  - `{RUN_DIR}/02_scenarios/{scenario_id}.json` — 시나리오별 필터링 결과 TOP 20
   - `{RUN_DIR}/02_property_research.json` — 인덱스 파일 (메타데이터 + 파일 경로 목록)
 
 인덱스 파일 형식 (`02_property_research.json`, ~500B):
@@ -64,6 +64,7 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
         "area_sqm": 84.98, "area_pyeong": 25.7,
         "floor_info": "19/25",
         "deposit_10k": 20000, "monthly_rent_10k": 160,
+        "maintenance_fee_10k": 41,
         "confirm_date": "2026-04-01",
         "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890"
       }
@@ -71,7 +72,7 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
   }
   ```
 
-시나리오별 파일 형식 (`02_scenarios/{id}.json`, ~1-2KB):
+시나리오별 파일 형식 (`02_scenarios/{id}.json`, ~1-3KB):
   ```json
   {
     "scenario_id": "목표12억_수익률2%",
@@ -83,7 +84,7 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
       "max_wolse_monthly_10k": 253
     },
     "matched_count": 42,
-    "top10": [
+    "top20": [
       {
         "rank": 1,
         "article_no": "12345",
@@ -91,6 +92,7 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
         "area_sqm": 84.98, "area_pyeong": 25.7,
         "floor_info": "19/25",
         "deposit_10k": 20000, "monthly_rent_10k": 160,
+        "maintenance_fee_10k": 41,
         "confirm_date": "2026-04-01",
         "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890"
       }
@@ -150,9 +152,9 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
 2. `{RUN_DIR}/02_raw/listings.json` 읽기
 3. 각 시나리오별로:
    a. budget 조건으로 매물 필터링 (deposit_10k <= max_wolse_deposit_10k AND monthly_rent_10k <= max_wolse_monthly_10k)
-   b. 면적 내림차순 TOP 10 선별 (동일 면적이면 보증금 내림차순)
+   b. 면적 내림차순 TOP 20 선별 (동일 면적이면 보증금 내림차순)
    c. **즉시** Write → `{RUN_DIR}/02_scenarios/{scenario_id}.json` (~1-2KB)
-4. feasible하지 않은 시나리오도 개별 파일로 저장 (`"top10": []`, ~200B)
+4. feasible하지 않은 시나리오도 개별 파일로 저장 (`"top20": []`, ~200B)
 
 핵심: cashflow_comment를 계산하지 않는다. 매물의 기본 정보만 저장한다.
 
