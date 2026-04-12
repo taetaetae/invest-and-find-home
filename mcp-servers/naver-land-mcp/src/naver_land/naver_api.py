@@ -182,6 +182,47 @@ async def get_articles(
     return data
 
 
+async def get_complex_detail(complex_no: str) -> dict[str, Any]:
+    """특정 단지의 상세 정보를 조회한다 (평형별 관리비 포함)."""
+    referer = f"{BASE_URL}/complexes/{complex_no}"
+    return await _get(f"/complexes/{complex_no}", referer=referer)
+
+
+def _match_maintenance_fee(
+    pyeong_detail_list: list[dict[str, Any]],
+    area_name: str,
+    area_sqm: float,
+) -> int:
+    """평형별 관리비 목록에서 해당 매물의 관리비를 찾아 만원 단위로 반환한다.
+
+    매칭 전략:
+      1. areaName == pyeongName 으로 정확 매칭
+      2. 실패 시 exclusiveArea 가장 근접한 평형 선택
+      3. 실패 시 0 반환
+    """
+    if not pyeong_detail_list:
+        return 0
+
+    # 1차: areaName → pyeongName 정확 매칭
+    for pyeong in pyeong_detail_list:
+        if pyeong.get("pyeongName") == area_name:
+            avg_cost = pyeong.get("averageMaintenanceCost", {})
+            price_str = avg_cost.get("averageTotalPrice", "0")
+            return round(int(price_str) / 10000) if price_str else 0
+
+    # 2차: exclusiveArea 근접 매칭
+    if area_sqm > 0:
+        best = min(
+            pyeong_detail_list,
+            key=lambda p: abs(float(p.get("exclusiveArea", 0)) - area_sqm),
+        )
+        avg_cost = best.get("averageMaintenanceCost", {})
+        price_str = avg_cost.get("averageTotalPrice", "0")
+        return round(int(price_str) / 10000) if price_str else 0
+
+    return 0
+
+
 def _parse_article(article: dict[str, Any], complex_name: str, complex_no: str = "") -> dict[str, Any]:
     """네이버 매물 응답을 통일 포맷으로 변환한다."""
     deposit_10k = _parse_price(article.get("dealOrWarrantPrc", "0"))
@@ -216,11 +257,13 @@ def _parse_article(article: dict[str, Any], complex_name: str, complex_no: str =
         "display_name": display_name,
         "article_name": article.get("articleName", ""),
         "building_name": building_name,
+        "area_name": article.get("areaName", ""),
         "area_sqm": area_sqm,
         "area_pyeong": area_pyeong,
         "floor_info": article.get("floorInfo", ""),
         "deposit_10k": deposit_10k,
         "monthly_rent_10k": monthly_rent_10k,
+        "maintenance_fee_10k": 0,
         "direction": direction,
         "confirm_date": confirm_ymd,
         "article_url": f"https://new.land.naver.com/complexes/{complex_no}?articleNo={article_no}",
@@ -311,6 +354,16 @@ async def search_listings(
             await asyncio.sleep(_REQUEST_DELAY)
             complex_count += 1
 
+            # 단지 상세 조회 (평형별 관리비)
+            pyeong_detail_list: list[dict[str, Any]] = []
+            try:
+                detail = await get_complex_detail(complex_no)
+                pyeong_detail_list = detail.get("complexPyeongDetailList", [])
+            except Exception:
+                pass
+
+            await asyncio.sleep(_REQUEST_DELAY)
+
             try:
                 data = await get_articles(complex_no, trade_type, page=1)
             except Exception:
@@ -319,6 +372,9 @@ async def search_listings(
             article_list = data.get("articleList", [])
             for article in article_list:
                 parsed = _parse_article(article, complex_name, complex_no)
+                parsed["maintenance_fee_10k"] = _match_maintenance_fee(
+                    pyeong_detail_list, parsed["area_name"], parsed["area_sqm"],
+                )
 
                 # 면적 필터
                 if min_area_sqm and parsed["area_sqm"] < min_area_sqm:

@@ -7,10 +7,12 @@ from typing import Any
 from naver_land import mcp
 from naver_land.naver_api import (
     get_articles,
+    get_complex_detail,
     get_complex_list,
     get_cortars,
     get_region_list,
     search_listings,
+    _match_maintenance_fee,
     _parse_article,
 )
 
@@ -128,11 +130,25 @@ async def naver_get_listings(
         is_more_data: Whether more pages exist
     """
     try:
+        # 단지 상세에서 평형별 관리비 조회
+        pyeong_detail_list: list[dict[str, Any]] = []
+        try:
+            detail = await get_complex_detail(complex_no)
+            pyeong_detail_list = detail.get("complexPyeongDetailList", [])
+        except Exception:
+            pass
+
         data = await get_articles(complex_no, trade_type, page)
         article_list = data.get("articleList", [])
         complex_name = article_list[0].get("articleName", "") if article_list else ""
 
-        articles = [_parse_article(a, complex_name, complex_no) for a in article_list]
+        articles = []
+        for a in article_list:
+            parsed = _parse_article(a, complex_name, complex_no)
+            parsed["maintenance_fee_10k"] = _match_maintenance_fee(
+                pyeong_detail_list, parsed["area_name"], parsed["area_sqm"],
+            )
+            articles.append(parsed)
 
         return {
             "count": len(articles),
@@ -200,11 +216,15 @@ def _build_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
             "median_monthly_rent_10k": 0,
             "min_monthly_rent_10k": 0,
             "max_monthly_rent_10k": 0,
+            "median_maintenance_fee_10k": 0,
+            "min_maintenance_fee_10k": 0,
+            "max_maintenance_fee_10k": 0,
             "sample_count": 0,
         }
 
     deposits = sorted(item["deposit_10k"] for item in items)
     rents = sorted(item["monthly_rent_10k"] for item in items)
+    fees = sorted(item.get("maintenance_fee_10k", 0) for item in items)
     n = len(items)
     mid = n // 2
 
@@ -215,6 +235,9 @@ def _build_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
         "median_monthly_rent_10k": rents[mid] if n % 2 else (rents[mid - 1] + rents[mid]) // 2,
         "min_monthly_rent_10k": rents[0],
         "max_monthly_rent_10k": rents[-1],
+        "median_maintenance_fee_10k": fees[mid] if n % 2 else (fees[mid - 1] + fees[mid]) // 2,
+        "min_maintenance_fee_10k": fees[0],
+        "max_maintenance_fee_10k": fees[-1],
         "sample_count": n,
     }
 
