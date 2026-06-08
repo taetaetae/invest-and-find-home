@@ -9,6 +9,26 @@ description: "부동산 월세 전략 비교 리포트 생성. 재무 시뮬레�
 
 ## 리포트 원칙
 
+### 0. 헤더: 조회 기준 + 재무 조건 명시 (필수)
+
+리포트 상단 헤더에 **"어떤 기준으로 매물을 조회했는지"** 를 반드시 명시한다. 헤더는 두 블록으로 구성한다.
+
+**1-A. 조회 기준 (매물 검색 조건)** — 매물 필터 조건을 그대로 노출한다:
+
+| 항목 | 값 | 출처 |
+|------|-----|------|
+| 조회 지역 | 분당구, 서초구, … | `02_property_research.json`의 `region.name` (없으면 `00_input/user_params.json`의 `region`) |
+| 주거 유형 | 아파트 월세 (고정) | — |
+| 평수 범위 | 25~35평 (82.6~115.7㎡) | `user_params.json`의 `min_area_sqm`/`max_area_sqm`. ㎡→평 = ÷3.3058. 미지정 시 "제한 없음" |
+| 월세 상한 | 150만원 | `user_params.json`의 `max_monthly_rent_10k`(만원). **`null`이면 "제한 없음"** 으로 표기 |
+
+- **월세 상한은 매물 결과를 좌우하는 핵심 필터이므로 헤더에 반드시 노출**하고 `.highlight` 클래스로 강조한다.
+- 평수/월세 상한이 미지정(`null`)이면 해당 cond-value를 **"제한 없음"** 으로 출력한다.
+
+**1-B. 재무 조건 (자산 시뮬레이션 입력)**: 총자산 / 목표자산 3종 / 월수익률 3종 / 투자기간 / 대출한도 / 실질 대출금리.
+
+두 블록은 각각 `.cond-group-label`(📍 조회 기준 / 💰 재무 조건) 소제목으로 구분한다.
+
 ### 1. 구성: 9가지 시나리오별 월세 TOP 20
 
 각 시나리오별로 매물을 면적 내림차순으로 정렬하여, 목표 자산에 도달 가능한 범위 내에서 가장 비싼 매물 20개를 선정한다.
@@ -72,6 +92,8 @@ header h1{font-size:24px;margin-bottom:12px}
 .cond-item{background:rgba(255,255,255,0.12);padding:10px 14px;border-radius:8px;font-size:14px}
 .cond-label{font-size:11px;opacity:0.7;margin-bottom:2px}
 .cond-value{font-size:16px;font-weight:600}
+.cond-group-label{font-size:13px;font-weight:700;opacity:0.9;margin-top:18px;margin-bottom:8px;letter-spacing:0.3px;border-left:3px solid rgba(255,255,255,0.5);padding-left:8px}
+.cond-item.highlight{background:rgba(255,235,59,0.2);border:1px solid rgba(255,235,59,0.5)}
 .matrix{background:#fff;border-radius:12px;padding:24px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
 .matrix h2{font-size:18px;margin-bottom:16px;color:#1a237e}
 .matrix table{width:100%;border-collapse:collapse;font-size:14px}
@@ -111,10 +133,22 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <body>
 <div class="container">
 
-<!-- 1. 헤더: 제목 + 생성일자 + 조건 요약 그리드 -->
+<!-- 1. 헤더: 제목 + 생성일자 + [조회 기준] + [재무 조건] -->
 <header>
 <h1>주거 전략 리포트 — {지역명} 아파트 월세</h1>
-<p style="opacity:0.8;font-size:14px">데이터 기준일: {YYYY-MM-DD} | 분석 대상: {평수범위} 아파트 월세</p>
+<p style="opacity:0.8;font-size:14px">데이터 기준일: {YYYY-MM-DD}</p>
+
+<!-- 1-A. 조회 기준 (매물 검색 조건) — 어떤 기준으로 매물을 조회했는지 명시 -->
+<div class="cond-group-label">📍 조회 기준 (매물 검색 조건)</div>
+<div class="conditions">
+<div class="cond-item"><div class="cond-label">조회 지역</div><div class="cond-value">{지역명}</div></div>
+<div class="cond-item"><div class="cond-label">주거 유형</div><div class="cond-value">아파트 월세</div></div>
+<div class="cond-item"><div class="cond-label">평수 범위</div><div class="cond-value">{평수범위} ({㎡범위})</div></div>
+<div class="cond-item highlight"><div class="cond-label">월세 상한</div><div class="cond-value">{월세상한}</div></div>
+</div>
+
+<!-- 1-B. 재무 조건 (시뮬레이션 입력) -->
+<div class="cond-group-label">💰 재무 조건 (자산 시뮬레이션)</div>
 <div class="conditions">
 <div class="cond-item"><div class="cond-label">총 자산</div><div class="cond-value">{총자산}</div></div>
 <div class="cond-item"><div class="cond-label">목표 자산</div><div class="cond-value">{목표1} / {목표2} / {목표3}</div></div>

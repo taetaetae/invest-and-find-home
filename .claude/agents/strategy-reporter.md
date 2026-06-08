@@ -13,7 +13,7 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
 자체적으로 CSS를 새로 만들거나, 클래스명을 변경하거나, 구조를 재설계하지 않는다.
 
 반드시 사용해야 하는 CSS 클래스:
-- `.container`, `header`, `.conditions`, `.cond-item`, `.cond-label`, `.cond-value`
+- `.container`, `header`, `.conditions`, `.cond-item`, `.cond-label`, `.cond-value`, `.cond-group-label`, `.cond-item.highlight`
 - `.matrix`, `.safe`, `.warn`, `.danger`
 - `.scenario-section`, `.scenario-meta`
 - `.report-container`, `.report-table`, `.name-cell`
@@ -83,13 +83,16 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
 ### Step 1: 데이터 로드
 1. `mkdir -p {RUN_DIR}/03_report` (Bash)
 2. `{RUN_DIR}/01_financial_simulation.json` 읽기
-3. `{RUN_DIR}/02_property_research.json` (인덱스) 읽기 → 시나리오 파일 경로 확인
+3. `{RUN_DIR}/02_property_research.json` (인덱스) 읽기 → 시나리오 파일 경로 + `filter`(min/max_area_sqm, max_monthly_rent_10k) + `region.name` 확인
+4. `{RUN_DIR}/00_input/user_params.json` 읽기 → 헤더 "조회 기준"용 값(region, min/max_area_sqm, max_monthly_rent_10k, housing_type) 확보
 
 ### Step 2: header.html 생성
 strategy-report 스킬의 참조 HTML 템플릿에서 `<!DOCTYPE html>`부터 `</div><!-- loan-summary -->` 까지를 생성한다.
 반드시 포함할 섹션:
 1. `<!DOCTYPE html>` + `<style>` (참조 템플릿의 CSS 그대로 복사)
-2. `<header>` — 제목, 생성일자, 조건 요약 그리드 (`.conditions` > `.cond-item`)
+2. `<header>` — 제목, 생성일자, **두 블록의 조건 그리드**:
+   - **📍 조회 기준 (매물 검색 조건)**: 조회 지역 / 주거 유형(아파트 월세) / 평수 범위(평+㎡) / **월세 상한**. `.cond-group-label` 소제목 + `.conditions` 그리드. 월세 상한 cond-item은 `.highlight` 클래스로 강조. 평수·월세 상한이 `null`이면 "제한 없음"으로 표기.
+   - **💰 재무 조건 (자산 시뮬레이션)**: 총 자산 / 목표 자산 3종 / 월 수익률 3종 / 투자 기간 / 대출 한도 / 실질 대출금리. `.cond-group-label` 소제목 + `.conditions` 그리드.
 3. `.matrix` — 9가지 시나리오 매트릭스 (보증금/월세 금액 표시, safe/warn/danger 색상)
 4. `.loan-summary` — 대출 조건 카드 (`.loan-grid` > `.loan-card`)
 
