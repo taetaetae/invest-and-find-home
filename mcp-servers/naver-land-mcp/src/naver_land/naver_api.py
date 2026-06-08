@@ -16,13 +16,21 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time as _time
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
 from curl_cffi import requests as curl_requests
 
 BASE_URL = "https://new.land.naver.com"
+
+# 사내 프록시(MITM) 자체서명 인증서 대응.
+# curl_cffi 번들 CA는 사내 프록시 인증서를 신뢰하지 못해 SSL error 60이 발생한다.
+# CURL_CA_BUNDLE 환경변수 우선, 없으면 알려진 사내 CA 경로로 폴백한다.
+_CA_BUNDLE = os.environ.get("CURL_CA_BUNDLE") or "/Users/taetaetae/cacerts.pem"
+_VERIFY: str | bool = _CA_BUNDLE if Path(_CA_BUNDLE).exists() else True
 
 _HEADERS = {
     "Accept": "application/json, text/plain, */*",
@@ -116,6 +124,9 @@ def _get_sync(url: str, referer: str | None = None) -> Any:
         cookies=_cookies,
         impersonate="chrome136",
         timeout=15,
+        verify=_VERIFY,
+        # 사내 프록시가 HTTP/2 헤더를 변조해 error 92가 발생하므로 HTTP/1.1 강제.
+        http_version="v1",
     )
     resp.raise_for_status()
     return resp.json()
