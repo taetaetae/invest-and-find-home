@@ -98,7 +98,8 @@ strategy-report 스킬의 참조 HTML 템플릿에서 `<!DOCTYPE html>`부터 `<
 1. `{RUN_DIR}/02_scenarios/{scenario_id}.json` 읽기
 2. 해당 시나리오의 TOP 20 매물에 대해 cashflow 계산
 3. `.scenario-section` 안에 `.report-table` 테이블 생성
-   - 테이블 헤더: `#, 매물명, 층, 면적(평), 등록일, 보증금/월세, 관리비, 보증금 구성, 대출이자(월), 월 주거비, 투자가능금, 예상자산, 달성률`
+   - 테이블 헤더: `#, 매물명, 층, 면적(평), 등록일, 사용승인일, 보증금/월세, 관리비, 보증금 구성, 대출이자(월), 월 주거비, 투자가능금, 예상자산, 달성률`
+   - 등록일(`confirm_date`)과 사용승인일(`use_approve_date`)은 매물 데이터의 값을 그대로 출력한다. 값이 없으면 `-`로 표시한다 (cashflow 계산 대상 아님, 단순 패스스루)
    - 모든 `<th>`에 `data-sort-type="number"` 또는 `data-sort-type="text"` 속성 필수
    - 매물명은 `<a href="{article_url}" target="_blank">` 링크
    - 예상자산은 `.bar-container` > `.bar-fill` 바 차트

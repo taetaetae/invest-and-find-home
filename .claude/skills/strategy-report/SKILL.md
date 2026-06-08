@@ -17,6 +17,7 @@ description: "부동산 월세 전략 비교 리포트 생성. 재무 시뮬레�
 
 ```
 - 매물명 (네이버 부동산 링크), 층수, 면적(평수)
+- 등록일, 사용승인일 (단지 준공 시점)
 - 월세: 보증금 / 월세
 - 관리비 (월)
 - 보증금 구성: 자기자본 + 대출 내역
@@ -162,6 +163,7 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <th data-sort-type="text">층</th>
 <th data-sort-type="number">면적(평)</th>
 <th data-sort-type="text">등록일</th>
+<th data-sort-type="text">사용승인일</th>
 <th data-sort-type="text">보증금/월세</th>
 <th data-sort-type="number">관리비</th>
 <th data-sort-type="text">보증금 구성</th>
@@ -178,6 +180,7 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <td>{층}</td>
 <td>{면적}</td>
 <td>{등록일}</td>
+<td>{사용승인일}</td>
 <td>{보증금}/{월세}</td>
 <td>{관리비}만</td>
 <td>대출 {대출액}<br>자기자본 {자기자본}</td>

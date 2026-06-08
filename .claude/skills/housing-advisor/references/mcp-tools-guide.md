@@ -64,6 +64,7 @@ naver-land-mcp 서버가 제공하는 도구 중 이 하네스에서 사용하�
   "maintenance_fee_10k": 41,
   "direction": "남향",
   "confirm_date": "2026-04-01",
+  "use_approve_date": "2018-03-01",
   "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890",
   "realtor_name": "OO공인중개사",
   "description": "매물 설명",

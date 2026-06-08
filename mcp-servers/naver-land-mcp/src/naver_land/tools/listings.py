@@ -12,6 +12,7 @@ from naver_land.naver_api import (
     get_cortars,
     get_region_list,
     search_listings,
+    _extract_use_approve_ymd,
     _match_maintenance_fee,
     _parse_article,
 )
@@ -130,11 +131,13 @@ async def naver_get_listings(
         is_more_data: Whether more pages exist
     """
     try:
-        # 단지 상세에서 평형별 관리비 조회
+        # 단지 상세에서 평형별 관리비 + 사용승인일 조회
         pyeong_detail_list: list[dict[str, Any]] = []
+        use_approve_date = ""
         try:
             detail = await get_complex_detail(complex_no)
             pyeong_detail_list = detail.get("complexPyeongDetailList", [])
+            use_approve_date = _extract_use_approve_ymd(detail)
         except Exception:
             pass
 
@@ -144,7 +147,7 @@ async def naver_get_listings(
 
         articles = []
         for a in article_list:
-            parsed = _parse_article(a, complex_name, complex_no)
+            parsed = _parse_article(a, complex_name, complex_no, use_approve_date)
             parsed["maintenance_fee_10k"] = _match_maintenance_fee(
                 pyeong_detail_list, parsed["area_name"], parsed["area_sqm"],
             )

@@ -24,6 +24,8 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
 - 현재 등록된 매물을 수집한다 (과거 실거래가가 아님)
 - 아파트 월세만 조사한다 (오피스텔, 빌라 조회 금지)
 - 가격은 만원 단위(price_10k)로 통일한다
+- 날짜 필드(`confirm_date` 등록일, `use_approve_date` 사용승인일)는 `YYYY-MM-DD` 형식으로 통일한다. MCP가 `YYYYMMDD`(예: `20180301`)로 반환하면 `2018-03-01`로 변환하여 저장하고, 값이 없으면 빈 문자열(`""`)로 둔다.
+- `use_approve_date`는 단지 사용승인일(준공 시점)이다. MCP의 `naver_search_listings`가 매물별로 함께 반환한다.
 
 ## 입력/출력 프로토콜
 - 입력: `{RUN_DIR}/00_input/user_params.json` (지역 정보)
@@ -66,6 +68,7 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
         "deposit_10k": 20000, "monthly_rent_10k": 160,
         "maintenance_fee_10k": 41,
         "confirm_date": "2026-04-01",
+        "use_approve_date": "2018-03-01",
         "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890"
       }
     ]
@@ -94,6 +97,7 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
         "deposit_10k": 20000, "monthly_rent_10k": 160,
         "maintenance_fee_10k": 41,
         "confirm_date": "2026-04-01",
+        "use_approve_date": "2018-03-01",
         "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890"
       }
     ]

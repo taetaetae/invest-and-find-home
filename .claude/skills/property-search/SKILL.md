@@ -83,6 +83,7 @@ financial-simulation의 9가지 시나리오별 최대 금액을 기준으로 �
       "maintenance_fee_10k": 41,
       "direction": "남향",
       "confirm_date": "2026-04-01",
+      "use_approve_date": "2018-03-01",
       "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890",
       "realtor_name": "OO공인중개사",
       "description": "매물 설명",
@@ -116,6 +117,7 @@ financial-simulation의 9가지 시나리오별 최대 금액을 기준으로 �
       "monthly_rent_10k": 160,
       "maintenance_fee_10k": 41,
       "confirm_date": "2026-04-01",
+      "use_approve_date": "2018-03-01",
       "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890"
     }
   ]

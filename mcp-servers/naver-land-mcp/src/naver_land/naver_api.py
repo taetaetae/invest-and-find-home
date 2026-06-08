@@ -188,6 +188,23 @@ async def get_complex_detail(complex_no: str) -> dict[str, Any]:
     return await _get(f"/complexes/{complex_no}", referer=referer)
 
 
+def _extract_use_approve_ymd(detail: dict[str, Any]) -> str:
+    """단지 상세 응답에서 사용승인일(useApproveYmd)을 추출한다.
+
+    네이버 단지 상세는 버전에 따라 최상위 또는 complexDetail 하위에
+    useApproveYmd(YYYYMMDD)를 둔다. 두 위치를 모두 시도하고, 없으면 빈 문자열.
+    """
+    ymd = detail.get("useApproveYmd")
+    if ymd:
+        return str(ymd)
+    complex_detail = detail.get("complexDetail")
+    if isinstance(complex_detail, dict):
+        ymd = complex_detail.get("useApproveYmd")
+        if ymd:
+            return str(ymd)
+    return ""
+
+
 def _match_maintenance_fee(
     pyeong_detail_list: list[dict[str, Any]],
     area_name: str,
@@ -223,8 +240,16 @@ def _match_maintenance_fee(
     return 0
 
 
-def _parse_article(article: dict[str, Any], complex_name: str, complex_no: str = "") -> dict[str, Any]:
-    """네이버 매물 응답을 통일 포맷으로 변환한다."""
+def _parse_article(
+    article: dict[str, Any],
+    complex_name: str,
+    complex_no: str = "",
+    use_approve_date: str = "",
+) -> dict[str, Any]:
+    """네이버 매물 응답을 통일 포맷으로 변환한다.
+
+    use_approve_date: 단지 사용승인일(YYYYMMDD). 단지 목록/상세에서 조회하여 전달한다.
+    """
     deposit_10k = _parse_price(article.get("dealOrWarrantPrc", "0"))
     monthly_rent_10k = _parse_price(article.get("rentPrc", "0"))
 
@@ -266,6 +291,7 @@ def _parse_article(article: dict[str, Any], complex_name: str, complex_no: str =
         "maintenance_fee_10k": 0,
         "direction": direction,
         "confirm_date": confirm_ymd,
+        "use_approve_date": use_approve_date,
         "article_url": f"https://new.land.naver.com/complexes/{complex_no}?articleNo={article_no}",
         "realtor_name": article.get("realtorName", ""),
         "description": article.get("articleFeatureDesc", ""),
@@ -348,17 +374,20 @@ async def search_listings(
 
             complex_no = cpx.get("complexNo", "")
             complex_name = cpx.get("complexName", "")
+            use_approve_ymd = cpx.get("useApproveYmd", "")
             if not complex_no:
                 continue
 
             await asyncio.sleep(_REQUEST_DELAY)
             complex_count += 1
 
-            # 단지 상세 조회 (평형별 관리비)
+            # 단지 상세 조회 (평형별 관리비 + 사용승인일 보강)
             pyeong_detail_list: list[dict[str, Any]] = []
             try:
                 detail = await get_complex_detail(complex_no)
                 pyeong_detail_list = detail.get("complexPyeongDetailList", [])
+                # 상세에 사용승인일이 있으면 우선 사용하고, 없으면 단지목록 값을 유지
+                use_approve_ymd = _extract_use_approve_ymd(detail) or use_approve_ymd
             except Exception:
                 pass
 
@@ -371,7 +400,7 @@ async def search_listings(
 
             article_list = data.get("articleList", [])
             for article in article_list:
-                parsed = _parse_article(article, complex_name, complex_no)
+                parsed = _parse_article(article, complex_name, complex_no, use_approve_ymd)
                 parsed["maintenance_fee_10k"] = _match_maintenance_fee(
                     pyeong_detail_list, parsed["area_name"], parsed["area_sqm"],
                 )
