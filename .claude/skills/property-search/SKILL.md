@@ -137,7 +137,7 @@ financial-simulation의 시나리오 **공격 한계선(`max_wolse_deposit_10k`)
 }
 ```
 
-> `listings`는 1차 필터(공격 한계선)를 통과한 매물을 보증금 내림차순으로 최대 150건까지 담은 **후보 집합**이다. strategy-reporter가 달성률을 계산해 `min_achievement_pct` 미만을 제외하고 달성률 높은 순 최대 100건으로 최종 확정한다. `matched_count`는 1차 필터 통과 전체 건수.
+> `listings`는 1차 필터(공격 한계선)를 통과한 매물을 보증금 내림차순으로 최대 150건까지 담은 **후보 집합**이다. strategy-reporter가 달성률을 계산해 `min_achievement_pct` 미만을 제외한 뒤, 통과 매물은 건수 제한 없이 전부 최종 확정한다(상위 N건 컷 없음). `matched_count`는 1차 필터 통과 전체 건수.
 
 ### 6. 분석 지표
 

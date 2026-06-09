@@ -1,11 +1,11 @@
 ---
 name: strategy-report
-description: "부동산 월세 전략 리포트 생성. 재무 시뮬레이션과 매물 데이터를 종합하여 단일 시나리오(목표 자산 1개 × 월 수익률 1개)의 월세 매물을 달성률 구간별로 최대 100건까지 HTML 리포트로 작성. 주거 전략, 대출 전략, 투자 전략표, 자산 변화 그래프 포함. 부동산 리포트, 주거 전략 리포트 요청 시 반드시 이 스킬을 사용할 것."
+description: "부동산 월세 전략 리포트 생성. 재무 시뮬레이션과 매물 데이터를 종합하여 단일 시나리오(목표 자산 1개 × 월 수익률 1개)의 월세 매물을 달성률 구간별로 건수 제한 없이 HTML 리포트로 작성. 주거 전략, 대출 전략, 투자 전략표, 자산 변화 그래프 포함. 부동산 리포트, 주거 전략 리포트 요청 시 반드시 이 스킬을 사용할 것."
 ---
 
 # Strategy Report
 
-재무 시뮬레이션의 단일 시나리오(목표 자산 1개 × 월 수익률 1개)에서, 사용자가 감수하는 최소 달성률(`min_achievement_pct`, 기본 70%)부터 100%+까지의 월세 매물을 **달성률 구간별로 최대 100건** 추천하는 HTML 리포트를 생성하는 스킬. 더 비싼 집(달성률 낮음)과 안전한 선택(달성률 높음)의 트레이드오프를 한눈에 비교할 수 있게 구성한다.
+재무 시뮬레이션의 단일 시나리오(목표 자산 1개 × 월 수익률 1개)에서, 사용자가 감수하는 최소 달성률(`min_achievement_pct`, 기본 70%)부터 100%+까지의 월세 매물을 **달성률 구간별로 (건수 제한 없이) 전부** 추천하는 HTML 리포트를 생성하는 스킬. 더 비싼 집(달성률 낮음)과 안전한 선택(달성률 높음)의 트레이드오프를 한눈에 비교할 수 있게 구성한다.
 
 ## 리포트 원칙
 
@@ -30,12 +30,12 @@ description: "부동산 월세 전략 리포트 생성. 재무 시뮬레이션�
 
 두 블록은 각각 `.cond-group-label`(📍 조회 기준 / 💰 재무 조건) 소제목으로 구분한다.
 
-### 1. 구성: 달성률 구간별 매물 (최대 100건)
+### 1. 구성: 달성률 구간별 매물 (건수 제한 없음)
 
 property-researcher가 넘긴 후보 매물(`listings`)에 대해 매물별 cashflow·달성률을 계산한 뒤, 다음 순서로 최종 매물을 확정한다.
 
 1. **달성률 하한 필터**: 매물별 달성률이 `min_achievement_pct`(기본 70) 미만이면 제외. 투자금이 0원이 되는 방안도 제외.
-2. **최대 100건 컷**: 통과 매물이 100건을 초과하면 **달성률 높은 순으로 상위 100건**만 남긴다. 잘린 매물 수(주로 공격 구간)는 리포트에 주석으로 명시한다(예: "공격 구간 12건이 100건 초과로 미표시").
+2. **건수 제한 없음**: 하한 필터를 통과한 매물은 **건수 제한 없이 전부** 표시한다(상위 N건 컷 없음). 안전·절충·공격 각 구간 모두 통과 매물을 빠짐없이 노출한다.
 3. **달성률 구간(밴드) 그룹핑** — 표를 3개 묶음으로 분리해 트레이드오프를 한눈에 보이게 한다:
 
    | 구간 | 달성률 | 색(클래스) | 의미 |
@@ -45,7 +45,7 @@ property-researcher가 넘긴 후보 매물(`listings`)에 대해 매물별 cash
    | 🔴 공격 | 70% ~ 85% | danger | 목표 미달 감수, 더 비싼 집 |
 
    - 구간 경계는 `min_achievement_pct`가 70일 때 기준이다. 하한은 항상 `min_achievement_pct`와 같다(예: 60이면 공격 구간이 60~85%로 넓어짐).
-   - 각 구간 안에서는 면적 내림차순(동일 면적이면 보증금 내림차순)으로 정렬하고, 헤더 클릭으로 재정렬할 수 있다(인터랙티브 정렬).
+   - 각 구간 안에서는 면적 내림차순(동일 면적이면 보증금 내림차순)으로 정렬하고, 헤더 클릭으로 재정렬할 수 있다(인터랙티브 정렬). 보증금·월세·대출·자기자본 등 금액 컬럼은 각각 별도 컬럼으로 분리하고 각 `<td>`에 `data-sort-value`(만원 단위 정수)를 부여해, "2억"·"5,000만"처럼 단위가 섞인 표기에서도 헤더 클릭 시 숫자 크기순으로 정확히 정렬되게 한다.
    - 빈 구간은 "해당 매물 없음"으로 표기하거나 생략한다.
 
 ### 2. 각 매물에 포함할 정보
@@ -53,9 +53,9 @@ property-researcher가 넘긴 후보 매물(`listings`)에 대해 매물별 cash
 ```
 - 매물명 (네이버 부동산 링크), 층수, 면적(평수)
 - 등록일, 사용승인일 (단지 준공 시점)
-- 월세: 보증금 / 월세
+- 보증금 (별도 컬럼), 월세 (별도 컬럼) — 각각 숫자 정렬 가능
 - 관리비 (월)
-- 보증금 구성: 자기자본 + 대출 내역
+- 보증금 구성: 대출 (별도 컬럼) + 자기자본 (별도 컬럼) — 각각 숫자 정렬 가능
 - 대출 월이자 (회사 지원 반영 후 실질 부담액)
 - 월 총 주거비 (대출이자 + 월세 + 관리비)
 - 남은 투자금
@@ -76,9 +76,9 @@ cashflow 계산 공식:
 
 **달성률 모델 주의(보수적 가정)**: `예상자산`은 **투자 자산만** 추적한다. 보증금에 넣은 자기자본(`자기자본_투입`)은 주거에 묶여 운용 못 하는 기회비용으로 보고, 임대 종료 시 돌려받는 보증금 회수분은 예상자산에 **더하지 않는다**. 따라서 보증금이 클수록 달성률이 뚜렷이 떨어진다(이 민감도가 70~100% 트레이드오프 스펙트럼을 만든다). 실제 순자산은 보증금만큼 더 많으므로 보수적 추정이며, 리포트 footer에 이 가정을 명시한다.
 
-**달성률 하한 필터 + 최대 100건**:
+**달성률 하한 필터 (건수 제한 없음)**:
 - 달성률 < `min_achievement_pct`(기본 70) 매물은 제외한다. 투자금 0원 방안도 제외한다.
-- 통과 매물이 100건 초과 시 **달성률 높은 순 상위 100건**만 남기고, 잘린 건수를 주석으로 명시한다.
+- 하한을 통과한 매물은 **건수 제한 없이 전부** 표시한다(상위 N건 컷 없음).
 
 관리비 참고:
 - `maintenance_fee_10k` — 네이버 부동산 단지 상세에서 평형별 연평균 관리비를 조회한다
@@ -87,8 +87,9 @@ cashflow 계산 공식:
 
 ### 3. 매물 배열 규칙
 
-- **달성률 구간(밴드)별로 3개 묶음으로 분리**: 🟢 안전(≥100%) / 🟡 절충(85~100%) / 🔴 공격(70~85%). 각 묶음은 별도의 `.report-table`로 렌더링한다.
+- **달성률 구간(밴드)별로 3개 묶음으로 분리**: 🟢 안전(≥100%) / 🟡 절충(85~100%) / 🔴 공격(70~85%). 각 묶음은 별도의 `.report-table`로 렌더링한다. **각 구간은 건수 제한 없이 통과 매물을 전부 표시한다(상위 N건 컷 없음).**
 - 각 구간 내 기본 정렬: 면적 내림차순 (동일 면적이면 보증금 내림차순, 동일 보증금이면 월세 오름차순). 헤더 클릭으로 재정렬 가능(인터랙티브 정렬).
+- **금액 컬럼 분리 + 숫자 정렬**: 보증금/월세는 별도 컬럼, 보증금 구성(대출/자기자본)도 별도 컬럼으로 각각 분리한다. 보증금·월세·대출·자기자본·관리비·대출이자·월주거비·투자가능금·예상자산·달성률 등 모든 금액/숫자 컬럼의 `<td>`에는 `data-sort-value`(만원 단위 정수, 달성률은 % 정수)를 부여한다. 셀 표시 텍스트는 "2억"·"5,000만"처럼 사람이 읽기 좋은 한국식 표기를 유지하되, 정렬 JS는 `data-sort-value`를 우선 읽어 단위가 섞여도 숫자 크기순으로 정확히 정렬한다.
 - 매물명은 `매물명[구명]` 형식으로 구를 병기한다(`gu_name`).
 
 ## HTML 리포트 구조
@@ -130,7 +131,7 @@ header h1{font-size:24px;margin-bottom:12px}
 .scenario-section h2{font-size:18px;margin-bottom:4px;color:#1a237e}
 .scenario-meta{font-size:13px;color:#666;margin-bottom:16px}
 .report-container{overflow-x:auto}
-.report-table{min-width:1300px;width:100%;border-collapse:collapse;font-size:13px}
+.report-table{min-width:1480px;width:100%;border-collapse:collapse;font-size:13px}
 .report-table th{background:#f5f5f5;padding:10px 8px;text-align:center;border:1px solid #e0e0e0;font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
 .report-table td{padding:8px;text-align:center;border:1px solid #e0e0e0;white-space:nowrap}
 .report-table tbody tr:hover{background:#f0f4ff}
@@ -229,11 +230,11 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 </div>
 </div>
 
-<!-- 4. 매물 — 달성률 구간별 (단일 시나리오, 최대 100건) -->
+<!-- 4. 매물 — 달성률 구간별 (단일 시나리오, 건수 제한 없음) -->
 <div class="scenario-section">
-<h2>시나리오: 목표 {목표}억 / 월 수익률 {수익률}% — 매물 {N}건 (최대 100)</h2>
-<div class="scenario-meta">안전선 보증금(100%): {안전선보증금} | 공격 한계선(달성률 {최소달성률}%): {공격한계보증금} | 최대 월세: {월세}{컷주석}</div>
-<!-- {컷주석} 예: " | ⚠ 공격 구간 12건이 100건 초과로 미표시" (잘린 매물 없으면 "") -->
+<h2>시나리오: 목표 {목표}억 / 월 수익률 {수익률}% — 매물 {N}건</h2>
+<div class="scenario-meta">안전선 보증금(100%): {안전선보증금} | 공격 한계선(달성률 {최소달성률}%): {공격한계보증금} | 최대 월세: {월세}</div>
+<!-- 건수 제한 없음: 하한 필터(달성률 {최소달성률}%) 통과 매물을 전부 표시한다 -->
 
 <!-- ▼ 아래 [h3 + report-container>table] 블록을 달성률 구간 3개에 대해 반복한다.
      안전(🟢 ≥100% safe) → 절충(🟡 85~100% warn) → 공격(🔴 70~85% danger) 순.
@@ -249,9 +250,11 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <th data-sort-type="number">면적(평)</th>
 <th data-sort-type="text">등록일</th>
 <th data-sort-type="text">사용승인일</th>
-<th data-sort-type="text">보증금/월세</th>
+<th data-sort-type="number">보증금</th>
+<th data-sort-type="number">월세</th>
 <th data-sort-type="number">관리비</th>
-<th data-sort-type="text">보증금 구성</th>
+<th data-sort-type="number">대출</th>
+<th data-sort-type="number">자기자본</th>
 <th data-sort-type="number">대출이자(월)</th>
 <th data-sort-type="number">월 주거비</th>
 <th data-sort-type="number">투자가능금</th>
@@ -259,21 +262,24 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <th data-sort-type="number">달성률</th>
 </tr></thead>
 <tbody>
+<!-- 금액 컬럼(보증금·월세·관리비·대출·자기자본·대출이자·월주거비·투자가능금·예상자산)은 표시 텍스트와 별개로 data-sort-value(만원 단위 정수)를 부여한다. 달성률은 % 정수. -->
 <tr>
 <td>1</td>
 <td class="name-cell"><a href="{article_url}" target="_blank">{매물명}</a><span style="color:#888;font-size:11px"> [{구명}]</span></td>
 <td>{층}</td>
-<td>{면적}</td>
+<td data-sort-value="{면적_수}">{면적}</td>
 <td>{등록일}</td>
 <td>{사용승인일}</td>
-<td>{보증금}/{월세}</td>
-<td>{관리비}만</td>
-<td>대출 {대출액}<br>자기자본 {자기자본}</td>
-<td>{대출이자}만</td>
-<td>{월주거비}만</td>
-<td>{투자금}</td>
-<td><div class="bar-container"><div class="bar-fill bar-{level}" style="width:{pct}%">{예상자산}</div></div></td>
-<td><span class="badge-{level}">{달성률}%</span></td>
+<td data-sort-value="{보증금_만원}">{보증금}</td>
+<td data-sort-value="{월세_만원}">{월세}만</td>
+<td data-sort-value="{관리비_만원}">{관리비}만</td>
+<td data-sort-value="{대출액_만원}">{대출액}</td>
+<td data-sort-value="{자기자본_만원}">{자기자본}</td>
+<td data-sort-value="{대출이자_만원}">{대출이자}만</td>
+<td data-sort-value="{월주거비_만원}">{월주거비}만</td>
+<td data-sort-value="{투자금_만원}">{투자금}</td>
+<td data-sort-value="{예상자산_만원}"><div class="bar-container"><div class="bar-fill bar-{level}" style="width:{pct}%">{예상자산}</div></div></td>
+<td data-sort-value="{달성률_수}"><span class="badge-{level}">{달성률}%</span></td>
 </tr>
 <!-- ... 그 구간 내 매물 반복 (면적 내림차순) -->
 </tbody>
@@ -292,13 +298,15 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
-// 단지별 마커 데이터 — strategy-reporter가 최종 확정 매물(최대 100건)을 complex_no로 집계해 채운다.
-// 한 단지 = 한 객체. lat/lng 없으면(null) 지도에서 제외(표에는 유지). minRent=단지 내 최저 월세(만원).
-// level=그 단지 최고 달성률 기준 safe/warn/danger. count=단지 내 매칭 매물 수.
+// 단지별 마커 데이터 — strategy-reporter가 최종 확정 매물(건수 제한 없음)을 complex_no로 집계해 채운다.
+// 한 단지 = 한 객체. lat/lng 없으면(null) 지도에서 제외(표에는 유지). count=단지 내 매칭 매물 수.
+// level=그 단지 최고 달성률 기준 safe/warn/danger.
+// ▷ 마커 대표값 = 단지 내 "월세가 가장 싼" 매물(동률이면 보증금 낮은 쪽). minRent=그 대표 매물의 월세(만원),
+//   repDeposit=그 대표 매물의 보증금 표시문자열(예 "6억", "5,000만"). 마커 라벨은 "{repDeposit} / 월{minRent}만".
 // ⚠ 반드시 "유효한 JSON 리터럴"로 작성한다: 모든 문자열은 큰따옴표(")로 감싸고 내부 " 와 \ 만 escape.
 //   (JSON은 JS의 부분집합이라 그대로 동작) 작은따옴표 문자열로 직렬화하지 말 것 — 단지명에 ' 가 있으면 깨진다.
 var COMPLEXES = [
-  // {"name":"래미안 마포리버뷰","lat":37.5421,"lng":126.9389,"households":1234,"count":3,"minRent":160,"level":"safe",
+  // {"name":"래미안 마포리버뷰","lat":37.5421,"lng":126.9389,"households":1234,"count":3,"minRent":160,"repDeposit":"2억","level":"safe",
   //  "listings":[{"floor":"19/25","pyeong":25.7,"deposit":"2억","rent":160,"fee":41,"rate":104,"url":"https://..."}]}
 ];
 (function(){
@@ -331,9 +339,12 @@ var COMPLEXES = [
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
   withGeo.forEach(function(c){
     var color=COLORS[c.level]||'#1a237e';
-    var rentLabel=(c.minRent!=null&&c.minRent>0)?esc(c.minRent):'-';
+    // 대표값 = 단지 내 월세 최저 매물의 보증금/월세
+    var rentLabel=(c.minRent!=null&&c.minRent>0)?('월'+esc(c.minRent)+'만'):'-';
+    var depLabel=(c.repDeposit!=null&&c.repDeposit!=='')?esc(c.repDeposit):'';
+    var priceLabel=depLabel?(depLabel+' / '+rentLabel):rentLabel;
     var html='<div class="price-pin" style="--pin-color:'+color+'">'
-      +'<div class="pin-body"><div class="pin-rent">월'+rentLabel+'만</div>'
+      +'<div class="pin-body"><div class="pin-rent">'+priceLabel+'</div>'
       +'<div class="pin-sub">'+esc(c.name)+' · '+esc(c.count)+'건</div></div>'
       +'<div class="pin-tail"></div></div>';
     var icon=L.divIcon({className:'',html:html,iconSize:[0,0],iconAnchor:[0,0]});
@@ -369,11 +380,13 @@ document.querySelectorAll('th[data-sort-type]').forEach(th => {
     table.querySelectorAll('th').forEach(h => h.textContent = h.textContent.replace(/ [▲▼]$/, ''));
     th.textContent += asc ? ' ▲' : ' ▼';
     rows.sort((a, b) => {
-      let va = a.children[idx]?.textContent.trim() || '';
-      let vb = b.children[idx]?.textContent.trim() || '';
+      const ca = a.children[idx], cb = b.children[idx];
+      // data-sort-value(만원 단위 정수)가 있으면 우선 사용 — "2억"/"5,000만"처럼 단위가 섞여도 정확히 정렬
+      let va = ca && ca.dataset.sortValue != null ? ca.dataset.sortValue : (ca?.textContent.trim() || '');
+      let vb = cb && cb.dataset.sortValue != null ? cb.dataset.sortValue : (cb?.textContent.trim() || '');
       if (type === 'number') {
-        va = parseFloat(va.replace(/[^0-9.\-]/g, '')) || 0;
-        vb = parseFloat(vb.replace(/[^0-9.\-]/g, '')) || 0;
+        va = parseFloat(String(va).replace(/[^0-9.\-]/g, '')) || 0;
+        vb = parseFloat(String(vb).replace(/[^0-9.\-]/g, '')) || 0;
       }
       return asc ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
     });
@@ -400,8 +413,8 @@ document.querySelectorAll('th[data-sort-type]').forEach(th => {
 
 매물 표 바로 아래에 단지 위치를 보여주는 통합 지도 1개를 둔다.
 
-- **마커 단위 = 단지**: 최종 확정 매물(최대 100건)을 `complex_no`로 묶어(dedup) 단지당 마커 1개를 찍는다. 같은 단지의 좌표는 동일하므로 매물별로 찍으면 겹친다.
-- **마커 라벨(가격표 핀)**: `월{최저월세}만` (그 단지 내 최저 월세) + `{단지명} · {매물수}건`.
+- **마커 단위 = 단지**: 최종 확정 매물(건수 제한 없음)을 `complex_no`로 묶어(dedup) 단지당 마커 1개를 찍는다. 같은 단지의 좌표는 동일하므로 매물별로 찍으면 겹친다.
+- **마커 라벨(가격표 핀)**: `{대표보증금} / 월{최저월세}만` + `{단지명} · {매물수}건`. **대표값은 단지 내 "월세가 가장 싼" 매물 기준**(월세 동률이면 보증금 낮은 쪽)으로, 그 매물의 보증금(`repDeposit`)과 월세(`minRent`)를 한 쌍으로 표시한다. `repDeposit`이 비어 있으면 월세만 표시한다.
 - **마커 색 = 달성률**: 그 단지 매물 중 **최고 달성률** 기준 — 100%↑ `safe`(녹), 85~100% `warn`(주황), 70~85% `danger`(빨). 표의 배지 색 임계값과 동일하게 맞춘다.
 - **클릭 팝업**: 단지명 · 세대수와, 그 단지 매칭 매물 목록(층/면적/보증금·월세/관리비/달성률 + 네이버 링크)을 표로 보여준다.
 - **데이터 출처**: 각 매물의 `latitude`/`longitude`/`household_count`/`complex_no`(MCP가 단지 좌표를 부착). 좌표가 `null`인 단지는 지도에서만 제외하고 표에는 유지하며, 제외 건수를 `.map-note`에 명시한다(`"지도 미표시 단지 N개 (좌표 미확보)"`). 미표시 0건이면 주석을 비운다.
