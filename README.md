@@ -19,8 +19,9 @@
  (재무 시뮬레이션)    (매물 조사)          (HTML 리포트)
         │               │               │
         ▼               ▼               ▼
- 01_financial_     02_property_      housing_report.html
- simulation.json   research.json     → 크롬 자동 열기
+ 01_financial_     02_property_      housing_report_
+ simulation.json   research.json     {지역}_{실행시각}.html
+                                     → 크롬 자동 열기
 ```
 
 ### 에이전트 팀
@@ -71,10 +72,10 @@ Claude Code에서 `시작하자` 또는 `시작`을 입력하면 housing-advisor
 
 ### 산출물
 
-매 실행마다 `_workspace/YYYY-MM-DD_HHmm/` 디렉토리가 생성됩니다:
+매 실행마다 `_workspace/YYYY-MM-DD_HHmm_xxxx/` 디렉토리가 생성됩니다 (`xxxx`는 랜덤 4자리 hex — 동시/병렬 실행 시에도 디렉토리가 겹치지 않습니다):
 
 ```
-_workspace/2026-04-11_0030/
+_workspace/2026-04-11_0030_a3f2/
 ├── 00_input/
 │   └── user_params.json           # 사용자 입력 파라미터
 ├── 01_financial_simulation.json   # 재무 시뮬레이션 결과
@@ -89,10 +90,11 @@ _workspace/2026-04-11_0030/
 │   ├── header.html
 │   ├── scenario_*.html
 │   └── footer.html
-└── housing_report.html            # 최종 HTML 리포트 → 크롬 자동 열기
+└── housing_report_서울-마포구_2026-04-11_0030_a3f2.html
+                                   # 최종 HTML 리포트 → 크롬 자동 열기
 ```
 
-`housing_report.html`은 리포트 생성 완료 시 크롬 브라우저에서 자동으로 열립니다.
+최종 리포트 파일명은 `housing_report_{지역}_{실행시각+유니크값}.html` 형식으로, 실행마다 고유합니다. 리포트 생성 완료 시 크롬 브라우저에서 자동으로 열립니다.
 
 ### 리포트 기능
 
