@@ -32,10 +32,12 @@ naver-land-mcp 서버가 제공하는 도구 중 이 하네스에서 사용하�
   - `trade_type: str = "B2"` — B2=전월세, B3=월세
   - `min_area_sqm: float | None` — 최소 전용면적 (㎡)
   - `max_area_sqm: float | None` — 최대 전용면적 (㎡)
-  - `max_complexes: int = 50` — 조회할 최대 단지 수
+  - `max_complexes_per_dong: int = 50` — 동별 조회 최대 단지 수 (상한이 동 단위로 적용되어 앞쪽 동이 뒤쪽 동을 굶기지 않음)
+  - `max_total_complexes: int = 300` — 구 전체 조회 최대 단지 수 (안전 상한)
 - 반환:
   - `total_count`: 전체 매물 수
   - `wolse_count`: 월세 매물 수 (monthly_rent_10k > 0)
+  - `coverage`: 조회 범위 메타 — `limit_reached`(상한 도달 여부), `truncated_dongs`(누락된 동), `dongs_total`/`dongs_queried`, `complexes_queried`. `limit_reached`가 true면 누락 동이 있으니 `max_total_complexes`/`max_complexes_per_dong`를 올려 재조회 검토
   - `items[]`: 매물 리스트 (통일 포맷)
   - `summary`: 통계 (median/min/max)
 

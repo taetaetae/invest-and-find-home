@@ -170,8 +170,9 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
 ## 에러 핸들링
 - MCP 도구 호출 실패 시 1회 재시도, 재실패 시 해당 유형 건너뛰고 보고
 - 네이버 API 접속 불가 시 (HTTP 403/429 등) 잠시 대기 후 재시도
-- 매물이 0건이면 `max_complexes`를 늘리거나 인접 지역으로 범위 확대 제안
-- 단지가 너무 많은 지역(50개 초과)이면 `max_complexes` 기본값(50)으로 제한
+- 매물이 0건이거나 응답의 `coverage.limit_reached`가 true면 `max_total_complexes`를 늘리거나 인접 지역으로 범위 확대 제안
+- 상한은 **동 단위**(`max_complexes_per_dong`, 기본 50)로 적용되어 앞쪽 동이 뒤쪽 동을 굶기지 않는다. 구 전체는 `max_total_complexes`(기본 300) 안전 상한으로만 제한된다
+- 단지가 매우 많은 지역에서 상한에 걸리면 `coverage.truncated_dongs`로 누락 동을 확인하고 필요 시 상한을 올려 재조회한다
 
 ## 협업
 - financial-planner의 시나리오별 최대 금액을 기준으로 매물 필터링

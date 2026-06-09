@@ -43,7 +43,9 @@ naver_search_listings(cortar_no="1144000000", trade_type="B2")
 |------|------|------|
 | `naver_search_listings` | 아파트 월세 | 유일하게 사용할 매물 조회 도구 |
 
-파라미터: `cortar_no`, `trade_type="B2"`, `min_area_sqm` (선택), `max_area_sqm` (선택), `max_complexes=50`
+파라미터: `cortar_no`, `trade_type="B2"`, `min_area_sqm` (선택), `max_area_sqm` (선택), `max_complexes_per_dong=50` (동별 상한), `max_total_complexes=300` (구 전체 안전 상한)
+
+상한은 **동 단위**로 적용된다. 응답의 `coverage.limit_reached`가 true면 누락된 동이 있다는 뜻이므로(`coverage.truncated_dongs` 확인), `max_total_complexes`를 올려 재조회를 검토한다.
 
 수집 시 `monthly_rent_10k == 0`인 전세 매물은 반드시 제외하고 월세 매물만 필터링한다.
 
@@ -162,6 +164,6 @@ cashflow 계산(보증금 구성, 대출 이자, 월 총 주거비, 남은 투�
 
 - 가격 단위는 항상 만원(10k)이다. `deposit_10k: 30000` = 3억원
 - 네이버 매물 가격은 호가이므로 실제 계약가와 다를 수 있다
-- 데이터가 없으면 `max_complexes`를 늘리거나 인접 지역 확대를 제안한다
+- 데이터가 없거나 `coverage.limit_reached`가 true면 `max_total_complexes`를 늘리거나 인접 지역 확대를 제안한다
 - 매물이 극히 적으면(5건 미만) 인접 지역 확대를 제안한다
 - 각 매물에 `article_url` (네이버 부동산 링크)이 포함되어 실제 매물을 확인할 수 있다

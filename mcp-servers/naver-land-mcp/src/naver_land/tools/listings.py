@@ -168,7 +168,8 @@ async def naver_search_listings(
     trade_type: str = "B2",
     min_area_sqm: float | None = None,
     max_area_sqm: float | None = None,
-    max_complexes: int = 50,
+    max_complexes_per_dong: int = 50,
+    max_total_complexes: int = 300,
 ) -> dict[str, Any]:
     """Search all current listings in a district (iterates through dongs and complexes).
 
@@ -176,23 +177,36 @@ async def naver_search_listings(
     It iterates through all dongs in the district, finds complexes with rentCount > 0,
     and collects their listings.
 
+    상한은 동 단위로 적용된다(동마다 max_complexes_per_dong까지). 따라서 앞쪽 동이
+    상한을 소진해 뒤쪽 동이 통째로 누락되는 일이 없다. 전체 단지 수는
+    max_total_complexes 안전 상한으로만 제한된다. 상한에 걸리면 coverage.limit_reached가
+    true가 되고 coverage.truncated_dongs에 누락된 동이 기록된다.
+
     Args:
         cortar_no: District-level cortarNo (e.g. "4113500000" for 분당구)
         trade_type: B2=전월세 (default)
         min_area_sqm: Minimum exclusive area in sqm (optional)
         max_area_sqm: Maximum exclusive area in sqm (optional)
-        max_complexes: Max complexes to query (default 50)
+        max_complexes_per_dong: Max complexes to query per dong (default 50)
+        max_total_complexes: Max complexes to query in the whole district (safety cap, default 300)
 
     Returns:
         total_count: Total listings found
         wolse_count: Listings with monthly_rent > 0
+        coverage: 조회 범위 메타(상한 도달 여부 limit_reached, 누락 동 truncated_dongs 등)
         items: Wolse-only listings in unified format
         summary: Statistics (median/min/max deposit and rent)
     """
     try:
-        listings = await search_listings(
-            cortar_no, trade_type, min_area_sqm, max_area_sqm, max_complexes
+        result = await search_listings(
+            cortar_no,
+            trade_type,
+            min_area_sqm,
+            max_area_sqm,
+            max_complexes_per_dong,
+            max_total_complexes,
         )
+        listings = result["listings"]
 
         # 월세만 필터 (monthly_rent_10k > 0)
         wolse_items = [item for item in listings if item["monthly_rent_10k"] > 0]
@@ -202,6 +216,7 @@ async def naver_search_listings(
         return {
             "total_count": len(listings),
             "wolse_count": len(wolse_items),
+            "coverage": result["coverage"],
             "items": wolse_items,
             "summary": summary,
         }

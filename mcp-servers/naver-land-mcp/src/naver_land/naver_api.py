@@ -346,27 +346,47 @@ async def search_listings(
     trade_type: str = "B2",
     min_area_sqm: float | None = None,
     max_area_sqm: float | None = None,
-    max_complexes: int = 50,
-) -> list[dict[str, Any]]:
+    max_complexes_per_dong: int = 50,
+    max_total_complexes: int = 300,
+) -> dict[str, Any]:
     """구/군 단위 지역의 전체 동을 순회하여 월세 매물을 수집한다.
+
+    상한은 **동 단위**로 적용한다(동마다 max_complexes_per_dong까지). 과거에는
+    구 전체 누적 상한이라 앞쪽 동이 상한을 다 소진하면 뒤쪽 동(예: 분당 판교동)이
+    통째로 누락됐다. 이제 각 동이 공평하게 조회되며, 전체 단지 수는
+    max_total_complexes 안전 상한으로만 제한된다.
 
     Args:
         division_cortar_no: 구/군 단위 지역 코드 (예: "4113500000")
         trade_type: 거래유형 — B2=전월세
         min_area_sqm: 최소 전용면적 (㎡)
         max_area_sqm: 최대 전용면적 (㎡)
-        max_complexes: 조회할 최대 단지 수
+        max_complexes_per_dong: 동별 조회 최대 단지 수
+        max_total_complexes: 구 전체 조회 최대 단지 수(안전 상한)
 
     Returns:
-        통일 포맷의 매물 리스트
+        {
+            "listings": 통일 포맷의 매물 리스트,
+            "coverage": {조회 범위 메타 — 상한 도달/누락 동 포함},
+        }
     """
     dongs = await get_region_list(division_cortar_no)
     all_listings: list[dict[str, Any]] = []
-    complex_count = 0
+    total_complex_count = 0
+    dongs_queried = 0
+    truncated_dongs: list[str] = []
+    limit_reached = False
 
     for dong in dongs:
         dong_no = dong.get("cortarNo", "")
+        dong_name = dong.get("cortarName", "")
         if not dong_no:
+            continue
+
+        # 전체 안전 상한 도달 — 남은 동은 조회하지 못함(누락으로 기록)
+        if total_complex_count >= max_total_complexes:
+            limit_reached = True
+            truncated_dongs.append(dong_name)
             continue
 
         await asyncio.sleep(_REQUEST_DELAY)
@@ -378,9 +398,18 @@ async def search_listings(
 
         # rentCount > 0인 단지만 매물 조회
         rent_complexes = [c for c in complexes if c.get("rentCount", 0) > 0]
+        dongs_queried += 1
 
+        dong_complex_count = 0
         for cpx in rent_complexes:
-            if complex_count >= max_complexes:
+            # 동별 상한 또는 전체 안전 상한 도달 — 이 동의 나머지 단지 누락
+            if (
+                dong_complex_count >= max_complexes_per_dong
+                or total_complex_count >= max_total_complexes
+            ):
+                limit_reached = True
+                if dong_name not in truncated_dongs:
+                    truncated_dongs.append(dong_name)
                 break
 
             complex_no = cpx.get("complexNo", "")
@@ -390,7 +419,8 @@ async def search_listings(
                 continue
 
             await asyncio.sleep(_REQUEST_DELAY)
-            complex_count += 1
+            dong_complex_count += 1
+            total_complex_count += 1
 
             # 단지 상세 조회 (평형별 관리비 + 사용승인일 보강)
             pyeong_detail_list: list[dict[str, Any]] = []
@@ -424,7 +454,15 @@ async def search_listings(
 
                 all_listings.append(parsed)
 
-        if complex_count >= max_complexes:
-            break
-
-    return all_listings
+    return {
+        "listings": all_listings,
+        "coverage": {
+            "dongs_total": len(dongs),
+            "dongs_queried": dongs_queried,
+            "complexes_queried": total_complex_count,
+            "limit_reached": limit_reached,
+            "truncated_dongs": truncated_dongs,
+            "max_complexes_per_dong": max_complexes_per_dong,
+            "max_total_complexes": max_total_complexes,
+        },
+    }
