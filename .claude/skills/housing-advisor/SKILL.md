@@ -36,10 +36,14 @@ until mkdir "$RUN_DIR" 2>/dev/null; do
   RUN_DIR="_workspace/$(date '+%Y-%m-%d_%H%M')_$(openssl rand -hex 2)"
 done
 mkdir -p "$RUN_DIR/00_input"
+RUN_ID="$(basename "$RUN_DIR")"            # 예: 2026-06-10_1430_a3f2
+TEAM_NAME="housing-advisor-team-$RUN_ID"   # 예: housing-advisor-team-2026-06-10_1430_a3f2
 ```
 
 이후 모든 파일 경로에서 `_workspace/`를 `_workspace/YYYY-MM-DD_HHmm_xxxx/`으로 대체한다.
 에이전트 프롬프트에 `RUN_DIR` 경로를 전달하여 모든 팀원이 같은 디렉토리에 저장하도록 한다.
+
+**팀 이름도 유니크하게 생성한다.** `TEAM_NAME = "housing-advisor-team-{RUN_ID}"` (RUN_ID는 RUN_DIR의 basename). 동시/병렬 실행이 서로 다른 팀에 격리되어 TeamCreate 충돌과 SendMessage 교차 라우팅(다른 실행의 팀원에게 메시지가 잘못 전달되는 혼선)을 막는다. `team_name`을 직접 넘기는 곳은 **`TeamCreate`와 팀원 스폰 `Agent` 호출뿐**이며 여기에 이 `{TEAM_NAME}` 값을 사용한다. `TaskCreate`·`SendMessage`·`TeamDelete`는 team_name 인자가 없고 현재 세션의 팀 컨텍스트에서 자동 결정되므로 별도 지정이 필요 없다. (team_name 제약: `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$` — RUN_ID는 콜론 없는 `A-Za-z0-9_-`만 포함하고 총 길이 41자로 제약을 만족한다.)
 
 사용자와 자연스러운 대화를 통해 단계별로 정보를 수집한다. 한꺼번에 모든 정보를 요구하지 않고, 각 단계에서 1~2개씩 물어보며 맥락을 쌓아간다. 사용자가 처음 트리거하면 인사와 함께 첫 질문을 시작한다.
 
@@ -158,10 +162,10 @@ mkdir -p "$RUN_DIR/00_input"
 
 ### Phase 2: 팀 구성
 
-1. 팀 생성:
+1. 팀 생성 (Phase 1에서 만든 유니크 `{TEAM_NAME}` 사용):
 ```
 TeamCreate(
-  team_name: "housing-advisor-team"
+  team_name: "{TEAM_NAME}"   // = housing-advisor-team-{RUN_ID}
 )
 ```
 
@@ -171,7 +175,7 @@ Agent(
   name: "financial-planner",
   subagent_type: "financial-planner",
   model: "opus",
-  team_name: "housing-advisor-team",
+  team_name: "{TEAM_NAME}",
   prompt: "당신은 재무 시뮬레이션 전문가입니다.
     {RUN_DIR}/00_input/user_params.json을 읽고 financial-simulation 스킬을 참조하여
     단일 시나리오(목표 자산 1개 × 월 수익률 1개)에 대해 두 개의 보증금 상한선을 계산하세요:
@@ -187,7 +191,7 @@ Agent(
   name: "property-researcher",
   subagent_type: "property-researcher",
   model: "opus",
-  team_name: "housing-advisor-team",
+  team_name: "{TEAM_NAME}",
   prompt: "당신은 부동산 매물 조사 전문가입니다.
     {RUN_DIR}/00_input/user_params.json을 읽고 property-search 스킬을 참조하여
     네이버 부동산에 현재 등록된 월세 매물을 조사하세요.
@@ -228,7 +232,7 @@ Agent(
   name: "strategy-reporter",
   subagent_type: "strategy-reporter",
   model: "opus",
-  team_name: "housing-advisor-team",
+  team_name: "{TEAM_NAME}",
   prompt: "당신은 리포트 생성 전문가입니다.
     financial-planner와 property-researcher의 결과가 모두 준비되면:
     1. {RUN_DIR}/01_financial_simulation.json 읽기
@@ -329,7 +333,7 @@ TaskCreate([
 ### Phase 5: 정리
 
 1. 팀원들에게 종료 요청 (SendMessage)
-2. 팀 정리 (TeamDelete)
+2. 팀 정리 (TeamDelete — 현재 세션의 `{TEAM_NAME}` 컨텍스트를 자동으로 정리하므로 인자 불필요)
 3. `_workspace/` 디렉토리 보존 (중간 산출물 감사 추적용)
 4. 사용자에게 최종 안내
 
