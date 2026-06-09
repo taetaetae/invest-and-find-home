@@ -1,11 +1,11 @@
 ---
 name: strategy-report
-description: "부동산 월세 전략 비교 리포트 생성. 재무 시뮬레이션과 매물 데이터를 종합하여 9가지 시나리오(목표 자산 3가지 × 월 수익률 3가지)별 월세 TOP 20을 HTML 리포트로 작성. 주거 전략, 대출 전략, 투자 전략 비교표, 자산 변화 그래프 포함. 부동산 리포트, 주거 전략 리포트 요청 시 반드시 이 스킬을 사용할 것."
+description: "부동산 월세 전략 리포트 생성. 재무 시뮬레이션과 매물 데이터를 종합하여 단일 시나리오(목표 자산 1개 × 월 수익률 1개)의 월세 TOP 50을 HTML 리포트로 작성. 주거 전략, 대출 전략, 투자 전략표, 자산 변화 그래프 포함. 부동산 리포트, 주거 전략 리포트 요청 시 반드시 이 스킬을 사용할 것."
 ---
 
 # Strategy Report
 
-재무 시뮬레이션의 9가지 시나리오(목표 자산 3가지 × 월 수익률 3가지)별 최대 가능 금액 내에서, 가장 공격적인(비싼) 월세 TOP 20 매물을 추천하는 HTML 리포트를 생성하는 스킬.
+재무 시뮬레이션의 단일 시나리오(목표 자산 1개 × 월 수익률 1개) 최대 가능 금액 내에서, 가장 공격적인(비싼) 월세 TOP 50 매물을 추천하는 HTML 리포트를 생성하는 스킬.
 
 ## 리포트 원칙
 
@@ -20,18 +20,19 @@ description: "부동산 월세 전략 비교 리포트 생성. 재무 시뮬레�
 | 조회 지역 | 분당구, 서초구, … | `02_property_research.json`의 `region.name` (없으면 `00_input/user_params.json`의 `region`) |
 | 주거 유형 | 아파트 월세 (고정) | — |
 | 평수 범위 | 25~35평 (82.6~115.7㎡) | `user_params.json`의 `min_area_sqm`/`max_area_sqm`. ㎡→평 = ÷3.3058. 미지정 시 "제한 없음" |
+| 사용승인일 | 2000년 이후 | `user_params.json`의 `min_use_approve_year`. **`null`이면 "제한 없음"** 으로 표기 |
 | 월세 상한 | 150만원 | `user_params.json`의 `max_monthly_rent_10k`(만원). **`null`이면 "제한 없음"** 으로 표기 |
 
 - **월세 상한은 매물 결과를 좌우하는 핵심 필터이므로 헤더에 반드시 노출**하고 `.highlight` 클래스로 강조한다.
-- 평수/월세 상한이 미지정(`null`)이면 해당 cond-value를 **"제한 없음"** 으로 출력한다.
+- 평수/사용승인일/월세 상한이 미지정(`null`)이면 해당 cond-value를 **"제한 없음"** 으로 출력한다.
 
-**1-B. 재무 조건 (자산 시뮬레이션 입력)**: 총자산 / 목표자산 3종 / 월수익률 3종 / 투자기간 / 대출한도 / 실질 대출금리.
+**1-B. 재무 조건 (자산 시뮬레이션 입력)**: 총자산 / 목표자산 / 월수익률 / 투자기간 / 대출한도 / 실질 대출금리.
 
 두 블록은 각각 `.cond-group-label`(📍 조회 기준 / 💰 재무 조건) 소제목으로 구분한다.
 
-### 1. 구성: 9가지 시나리오별 월세 TOP 20
+### 1. 구성: 단일 시나리오 월세 TOP 50
 
-각 시나리오별로 매물을 면적 내림차순으로 정렬하여, 목표 자산에 도달 가능한 범위 내에서 가장 비싼 매물 20개를 선정한다.
+매물을 면적 내림차순으로 정렬하여, 목표 자산에 도달 가능한 범위 내에서 가장 비싼 매물 50개를 선정한다.
 
 ### 2. 각 매물에 포함할 정보
 
@@ -144,6 +145,7 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <div class="cond-item"><div class="cond-label">조회 지역</div><div class="cond-value">{지역명}</div></div>
 <div class="cond-item"><div class="cond-label">주거 유형</div><div class="cond-value">아파트 월세</div></div>
 <div class="cond-item"><div class="cond-label">평수 범위</div><div class="cond-value">{평수범위} ({㎡범위})</div></div>
+<div class="cond-item"><div class="cond-label">사용승인일</div><div class="cond-value">{사용승인조건}</div></div>
 <div class="cond-item highlight"><div class="cond-label">월세 상한</div><div class="cond-value">{월세상한}</div></div>
 </div>
 
@@ -151,25 +153,24 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <div class="cond-group-label">💰 재무 조건 (자산 시뮬레이션)</div>
 <div class="conditions">
 <div class="cond-item"><div class="cond-label">총 자산</div><div class="cond-value">{총자산}</div></div>
-<div class="cond-item"><div class="cond-label">목표 자산</div><div class="cond-value">{목표1} / {목표2} / {목표3}</div></div>
-<div class="cond-item"><div class="cond-label">월 수익률</div><div class="cond-value">{수익률1} / {수익률2} / {수익률3}</div></div>
+<div class="cond-item"><div class="cond-label">목표 자산</div><div class="cond-value">{목표}억</div></div>
+<div class="cond-item"><div class="cond-label">월 수익률</div><div class="cond-value">{수익률}%</div></div>
 <div class="cond-item"><div class="cond-label">투자 기간</div><div class="cond-value">{N}개월 ({시작}~{종료})</div></div>
 <div class="cond-item"><div class="cond-label">대출 한도</div><div class="cond-value">{대출한도}</div></div>
 <div class="cond-item"><div class="cond-label">실질 대출금리</div><div class="cond-value">연 {실질금리}% (회사지원 반영)</div></div>
 </div>
 </header>
 
-<!-- 2. 시나리오 매트릭스: 3×3 테이블 -->
+<!-- 2. 전략 요약: 단일 시나리오 -->
 <div class="matrix">
-<h2>시나리오 매트릭스 — 9가지 조합 요약</h2>
+<h2>전략 요약 — 목표 {목표}억 / 월 수익률 {수익률}%</h2>
 <table>
 <thead>
-<tr><th rowspan="2">목표 자산</th><th colspan="3">월 수익률</th></tr>
-<tr><th>{수익률1}</th><th>{수익률2}</th><th>{수익률3}</th></tr>
+<tr><th>달성 가능</th><th>최대 보증금</th><th>최대 월세 / 월 주거비</th><th>필요 투자금</th></tr>
 </thead>
 <tbody>
-<!-- 각 셀에 class="safe|warn|danger" 적용 -->
-<!-- 셀 내용: 보증금 X억<br>월세 Y만 + 이자 Z만<br>= 월 주거비 W만 -->
+<!-- 단일 행에 class="safe|warn|danger" 적용 -->
+<tr class="{level}"><td>{가능여부}</td><td>{보증금}</td><td>월세 {월세} + 이자 {이자}<br>= 월 주거비 {월주거비}</td><td>{필요투자금}</td></tr>
 </tbody>
 </table>
 <p style="font-size:12px;color:#888;margin-top:8px">* 보증금 = 최대 가능 보증금, 월세 = 최대 가능 월세 (대출이자 차감 후) / 관리비 별도 (매물별 상이)</p>
@@ -185,7 +186,7 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 </div>
 </div>
 
-<!-- 4. 시나리오별 매물 TOP 20 (9개 반복) -->
+<!-- 4. 매물 TOP 50 (단일 시나리오) -->
 <div class="scenario-section">
 <h2>시나리오: 목표 {목표}억 / 월 수익률 {수익률}%</h2>
 <div class="scenario-meta">여유도: <span class="badge-{level}">{label}</span> | 최대 보증금: {보증금} | 최대 월세: {월세} | 매물 {N}건</div>
@@ -224,12 +225,12 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 <td><div class="bar-container"><div class="bar-fill bar-{level}" style="width:{pct}%">{예상자산}</div></div></td>
 <td><span class="badge-{level}">{달성률}%</span></td>
 </tr>
-<!-- ... 20건 반복 -->
+<!-- ... 50건 반복 -->
 </tbody>
 </table>
 </div>
 </div>
-<!-- ... 9개 시나리오 반복 -->
+<!-- 단일 시나리오 (반복 없음) -->
 
 <!-- 5. 면책 조항 -->
 <footer>

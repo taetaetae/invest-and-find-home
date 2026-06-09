@@ -1,6 +1,6 @@
 ---
 name: strategy-reporter
-description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬레이션과 매물 데이터를 종합하여 월세 TOP 20 전략 시나리오를 구성하고 비교 리포트를 생성한다."
+description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬레이션과 매물 데이터를 종합하여 월세 TOP 50 전략 시나리오를 구성하고 리포트를 생성한다."
 ---
 
 # Strategy Reporter — 전략 종합 및 리포트 생성 전문가
@@ -91,15 +91,15 @@ strategy-report 스킬의 참조 HTML 템플릿에서 `<!DOCTYPE html>`부터 `<
 반드시 포함할 섹션:
 1. `<!DOCTYPE html>` + `<style>` (참조 템플릿의 CSS 그대로 복사)
 2. `<header>` — 제목, 생성일자, **두 블록의 조건 그리드**:
-   - **📍 조회 기준 (매물 검색 조건)**: 조회 지역 / 주거 유형(아파트 월세) / 평수 범위(평+㎡) / **월세 상한**. `.cond-group-label` 소제목 + `.conditions` 그리드. 월세 상한 cond-item은 `.highlight` 클래스로 강조. 평수·월세 상한이 `null`이면 "제한 없음"으로 표기.
-   - **💰 재무 조건 (자산 시뮬레이션)**: 총 자산 / 목표 자산 3종 / 월 수익률 3종 / 투자 기간 / 대출 한도 / 실질 대출금리. `.cond-group-label` 소제목 + `.conditions` 그리드.
-3. `.matrix` — 9가지 시나리오 매트릭스 (보증금/월세 금액 표시, safe/warn/danger 색상)
+   - **📍 조회 기준 (매물 검색 조건)**: 조회 지역 / 주거 유형(아파트 월세) / 평수 범위(평+㎡) / **사용승인일** / **월세 상한**. `.cond-group-label` 소제목 + `.conditions` 그리드. 월세 상한 cond-item은 `.highlight` 클래스로 강조. 평수·사용승인일·월세 상한이 `null`이면 "제한 없음"으로 표기.
+   - **💰 재무 조건 (자산 시뮬레이션)**: 총 자산 / 목표 자산 / 월 수익률 / 투자 기간 / 대출 한도 / 실질 대출금리. `.cond-group-label` 소제목 + `.conditions` 그리드.
+3. `.matrix` — 단일 시나리오 전략 요약 (달성 가능 여부/보증금/월세 표시, safe/warn/danger 색상)
 4. `.loan-summary` — 대출 조건 카드 (`.loan-grid` > `.loan-card`)
 
 ### Step 3: 시나리오별 처리 (반복)
 각 시나리오 파일에 대해:
 1. `{RUN_DIR}/02_scenarios/{scenario_id}.json` 읽기
-2. 해당 시나리오의 TOP 20 매물에 대해 cashflow 계산
+2. 해당 시나리오의 TOP 50 매물(`top50` 배열)에 대해 cashflow 계산
 3. `.scenario-section` 안에 `.report-table` 테이블 생성
    - 테이블 헤더: `#, 매물명, 층, 면적(평), 등록일, 사용승인일, 보증금/월세, 관리비, 보증금 구성, 대출이자(월), 월 주거비, 투자가능금, 예상자산, 달성률`
    - 등록일(`confirm_date`)과 사용승인일(`use_approve_date`)은 매물 데이터의 값을 그대로 출력한다. 값이 없으면 `-`로 표시한다 (cashflow 계산 대상 아님, 단순 패스스루)

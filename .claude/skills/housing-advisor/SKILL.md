@@ -5,7 +5,7 @@ description: "부동산 월세 전략 어드바이저. 자산 증식 목표, 대
 
 # Housing Advisor — 부동산 월세 전략 오케스트레이터
 
-목표 자산에 도달 가능한 범위 내에서, 가장 공격적인(비싼) 월세 매물 TOP 20을 추천하는 에이전트 팀 오케스트레이터.
+목표 자산에 도달 가능한 범위 내에서, 가장 공격적인(비싼) 월세 매물 TOP 50을 추천하는 에이전트 팀 오케스트레이터.
 
 ## 실행 모드: 에이전트 팀
 
@@ -45,18 +45,18 @@ mkdir -p "$RUN_DIR/00_input"
 > "안녕하세요! 자산 증식과 주거, 두 마리 토끼를 잡아보겠습니다.
 > 먼저 현재 상황부터 알려주세요.
 > - 현재 총 자산은 얼마인가요? (예: 3억)
-> - 목표 자산을 3가지로 알려주세요. (예: 12억, 15억, 20억)
+> - 목표 자산은 얼마인가요? (예: 20억)
 > - 목표 달성 시점은 언제인가요? (예: 2027년 12월)"
 
-→ `total_asset_10k`, `target_assets_10k` (3개 배열), `target_date` 수집
+→ `total_asset_10k`, `target_asset_10k` (단일 값), `target_date` 수집
 
 **Step 2: 투자 수익률**
 
-> "월 수익률을 3가지로 가정해주세요.
-> (예: 월 1%, 월 2%, 월 3%)"
+> "월 수익률을 가정해주세요.
+> (예: 월 2%)"
 
-→ `monthly_rates_pct` (3개 배열) 수집
-→ 3가지 목표 × 3가지 수익률 = 9가지 시나리오로 분석합니다.
+→ `monthly_rate_pct` (단일 값) 수집
+→ 목표 자산 1개 × 월 수익률 1개 = 단일 시나리오로 분석합니다.
 
 **Step 3: 회사 이자 지원 (옵션)**
 
@@ -75,11 +75,20 @@ mkdir -p "$RUN_DIR/00_input"
 > 그리고 희망하는 평수 범위가 있으면 알려주세요.
 > (예: 서울 마포구, 30평 이상 / 성남 분당구, 25~35평)"
 
-→ `region` 수집. `housing_type`은 `"월세"`로 고정한다. 월세 매물을 분석하여 시나리오별 TOP 20을 추천한다.
+→ `region` 수집. `housing_type`은 `"월세"`로 고정한다. 월세 매물을 분석하여 TOP 50을 추천한다.
 → `min_area_pyeong`, `max_area_pyeong` 수집 (선택). 미지정 시 null.
 → 평수→㎡ 변환: 1평 = 3.3058㎡. `min_area_sqm = min_area_pyeong * 3.3058`, `max_area_sqm = max_area_pyeong * 3.3058`
 
-**Step 5: 월세 상한선 (옵션)**
+**Step 5: 사용승인일(준공 시점) 조건 (옵션)**
+
+> "사용승인일(아파트 준공 시점) 조건이 있나요?
+> 특정 연도 이후 준공된 매물만 보거나, 제한 없이 모두 볼 수 있습니다.
+> (예: 2000년 이후만 / 2010년 이후만 / 제한 없음)"
+
+→ `min_use_approve_year` 수집. "제한 없음"이면 `null`
+→ 있으면: 연도 정수로 변환 (예: 2000년 이후 → 2000). `use_approve_date`의 연도가 이 값 이상인 매물만 남긴다.
+
+**Step 6: 월세 상한선 (옵션)**
 
 > "혹시 월세 상한선이 있나요?
 > 이 금액을 넘는 매물은 제외하고 검색합니다.
@@ -88,18 +97,19 @@ mkdir -p "$RUN_DIR/00_input"
 → `max_monthly_rent_10k` 수집. "없음"이면 `null`
 → 있으면: 만원 단위로 변환 (예: 300만원 → 300)
 
-**Step 6: 확인 및 시작**
+**Step 7: 확인 및 시작**
 
 수집한 정보를 요약하여 보여주고 확인을 받는다:
 
 > "정리하면 이렇습니다:
 > - 현재 자산: X억
-> - 목표 자산: A억 / B억 / C억 (YYYY년 MM월까지)
-> - 월 수익률: X% / Y% / Z%
-> - → 총 9가지 시나리오 (3목표 × 3수익률)
+> - 목표 자산: A억 (YYYY년 MM월까지)
+> - 월 수익률: X%
+> - → 단일 시나리오 (목표 1개 × 수익률 1개)
 > - 회사 이자 지원: 대출 A억까지 연 B% 지원
 > - 지역: OO구, 월세
 > - 희망 평수: N평 이상 ~ M평 이하 (또는 '제한 없음')
+> - 사용승인일: YYYY년 이후 (또는 '제한 없음')
 > - 월세 상한선: N만원 (또는 '제한 없음')
 >
 > 이대로 분석을 시작할까요? 수정할 부분이 있으면 말씀해주세요."
@@ -109,14 +119,15 @@ mkdir -p "$RUN_DIR/00_input"
 ```json
 {
   "total_asset_10k": 0,
-  "target_assets_10k": [0, 0, 0],
+  "target_asset_10k": 0,
   "target_date": "YYYY-MM",
-  "monthly_rates_pct": [0, 0, 0],
+  "monthly_rate_pct": 0,
   "region": "서울 마포구",
   "housing_type": "월세",
   "min_area_sqm": null,
   "max_area_sqm": null,
   "max_monthly_rent_10k": null,
+  "min_use_approve_year": null,
   "company_interest_support": {
     "available": false,
     "loan_limit_10k": 0,
@@ -143,7 +154,7 @@ Agent(
   team_name: "housing-advisor-team",
   prompt: "당신은 재무 시뮬레이션 전문가입니다.
     {RUN_DIR}/00_input/user_params.json을 읽고 financial-simulation 스킬을 참조하여
-    9가지 시나리오(목표 자산 3가지 × 월 수익률 3가지)별로
+    단일 시나리오(목표 자산 1개 × 월 수익률 1개)에 대해
     목표 자산 달성에 필요한 최소 투자금과 주거에 쓸 수 있는 최대 금액을 계산하세요.
     결과를 {RUN_DIR}/01_financial_simulation.json에 Write 도구로 새로 생성하세요.
     최신 월세 대출 금리는 WebSearch로 확인하세요.
@@ -165,6 +176,8 @@ Agent(
     user_params.json에 min_area_sqm/max_area_sqm이 있으면 MCP 도구 호출 시 해당 파라미터를 전달하세요.
     user_params.json에 max_monthly_rent_10k이 있으면(null이 아니면), 시나리오별 필터링 시
     monthly_rent_10k <= max_monthly_rent_10k 조건을 추가 적용하세요.
+    user_params.json에 min_use_approve_year가 있으면(null이 아니면), use_approve_date의 연도가
+    min_use_approve_year 이상인 매물만 남기세요 (준공 시점 필터). 수집 단계에서 바로 적용합니다.
 
     [중요] 다중 파일 점진적 저장 규칙:
     1. mkdir -p {RUN_DIR}/02_raw {RUN_DIR}/02_scenarios
@@ -181,7 +194,7 @@ Agent(
 
     중요: 투자금이 0원이 되는(자기자본 전액을 주거에 투입하는) 방안은 제외하세요.
     해당 조건에서 매물이 없으면 '조건에 맞는 매물 없음'으로 표시하세요.
-    각 시나리오별로 월세 매물 중 가장 비싼(공격적인) 매물 TOP 20을 선별하세요.
+    시나리오 상한선 이하에서 월세 매물 중 가장 비싼(공격적인) 매물 TOP 50을 선별하세요.
     완료 후 리더에게 알려주세요."
 )
 
@@ -269,11 +282,11 @@ TaskCreate([
    - `{RUN_DIR}/03_report/` 디렉토리에 HTML 파트 파일 존재 확인
    - `{RUN_DIR}/housing_report.html` 최종 리포트 존재 + 크기 > 0 확인
 3. 리포트 내용 간략 검증:
-   - 월세 TOP 20이 포함되었는지
+   - 월세 TOP 50이 포함되었는지
    - 각 매물에 예상 자산 달성률이 표시되었는지
    - 금액 계산에 명백한 오류가 없는지
 4. 사용자에게 결과 요약 보고:
-   - 월세 TOP 20 한줄 요약
+   - 월세 TOP 50 한줄 요약
    - `{RUN_DIR}/housing_report.html` 파일 경로
 5. 리포트를 크롬 브라우저로 자동 열기:
    ```bash
@@ -322,11 +335,11 @@ TaskCreate([
 2. Phase 1에서 user_params.json 저장
 3. Phase 2에서 팀 구성 (3명 + 4개 작업)
 4. Phase 3에서:
-   - financial-planner가 9가지 시나리오 시뮬레이션 완료
+   - financial-planner가 단일 시나리오 시뮬레이션 완료
    - property-researcher가 마포구 현재 매물 수집 → 02_raw/listings.json + 02_scenarios/*.json + 인덱스 저장
    - strategy-reporter가 시나리오 파일 읽기 → cashflow 계산 → HTML 분할 생성 → cat 조합
 5. Phase 4에서 02_raw/listings.json, 02_scenarios/, 03_report/ 디렉토리 + housing_report.html 검증 후 사용자에게 전달
-6. 예상 결과: `housing_report.html` 생성, 월세 TOP 20 비교표 포함
+6. 예상 결과: `housing_report.html` 생성, 월세 TOP 50 비교표 포함
 
 ### 에러 흐름
 1. Phase 3에서 property-researcher가 MCP 호출 실패
