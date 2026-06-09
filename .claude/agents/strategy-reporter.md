@@ -20,6 +20,7 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
 - `.badge-safe`, `.badge-warn`, `.badge-danger`
 - `.bar-container`, `.bar-fill`, `.bar-safe`, `.bar-warn`, `.bar-danger`
 - `.loan-summary`, `.loan-grid`, `.loan-card`
+- 지도: `.map-section`, `.map-meta`, `#map`, `.map-note`, `.price-pin`(+`.pin-body`/`.pin-rent`/`.pin-sub`/`.pin-tail`), `.pin-popup`
 
 반드시 사용해야 하는 HTML 구조:
 - 헤더: `<header>` 안에 그라데이션 배경(`linear-gradient(135deg,#1a237e,#283593)`), `.conditions` 그리드
@@ -71,8 +72,9 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
 - 입력: `{RUN_DIR}/02_property_research.json` (인덱스 — 시나리오 파일 경로 목록)
 - 입력: `{RUN_DIR}/02_scenarios/{scenario_id}.json` (시나리오별 개별 파일)
 - 출력 (분할 생성):
-  - `{RUN_DIR}/03_report/header.html` — 헤더 + CSS (~3KB)
-  - `{RUN_DIR}/03_report/scenario_{id}.html` — 시나리오별 섹션 (각 ~2-3KB)
+  - `{RUN_DIR}/03_report/header.html` — Leaflet CSS + 인라인 CSS + 헤더 (~3KB)
+  - `{RUN_DIR}/03_report/scenario_{id}.html` — 시나리오 섹션(표) (~2-3KB)
+  - `{RUN_DIR}/03_report/map.html` — 지도 섹션 + Leaflet JS + COMPLEXES 데이터 + 지도 init JS
   - `{RUN_DIR}/03_report/footer.html` — 면책 조항 + 정렬 JS (~1KB)
   - `{RUN_DIR}/housing_report.html` — 최종 조합 (Bash cat으로 생성)
 
@@ -109,6 +111,22 @@ strategy-report 스킬의 참조 HTML 템플릿에서 `<!DOCTYPE html>`부터 `<
    - 달성률은 `.badge-safe/warn/danger` 배지
 4. **즉시** Write → `{RUN_DIR}/03_report/scenario_{scenario_id}.html`
 
+### Step 3.5: map.html 생성 (표 아래 통합 지도)
+
+strategy-report 스킬의 "지도 섹션" 템플릿을 그대로 사용한다. **시나리오 루프와 무관하게 top50 전체를 1회 집계해 map.html을 1개만 생성한다.** TOP 50 매물을 단지로 묶어 `COMPLEXES` 배열을 채운다.
+
+1. **단지 집계**: top50 매물을 `complex_no`로 그룹핑한다(`complex_no`가 없으면 `article_url`의 `/complexes/{id}` 부분에서 추출하고, 그것도 비어 있으면 그 매물은 좌표 없는 단지로 취급 — 지도 제외, 표 유지). 각 단지마다:
+   - `name` = `complex_name`, `lat` = `latitude`, `lng` = `longitude` (둘 중 하나라도 없으면 `lat`/`lng`를 `null`로 두어 지도에서 제외)
+   - `households` = `household_count` (없으면 0)
+   - `count` = 그 단지 매칭 매물 수
+   - `minRent` = 그 단지 매물의 최저 `monthly_rent_10k` (0·null이면 템플릿이 `-`로 표기)
+   - `level` = 그 단지 매물 중 **최고 달성률** 기준 — `safe`(≥100) / `warn`(90~100) / `danger`(<90). 표 배지 색 임계값과 동일.
+   - `listings[]` = 매물별 `{floor:floor_info, pyeong:area_pyeong, deposit:보증금(억/만 표기), rent:monthly_rent_10k, fee:maintenance_fee_10k, rate:달성률(정수), url:article_url}`
+2. **마커 데이터 직렬화(중요)**: `COMPLEXES`를 **유효한 JSON 배열 리터럴**로 작성한다 — 모든 문자열은 큰따옴표(`"`)로 감싸고 값 내부의 `"`와 백슬래시(`\`)는 escape한다. (JSON은 JS의 부분집합이라 `var COMPLEXES = [ ...JSON... ];`로 그대로 동작) **작은따옴표 문자열로 직렬화하지 말 것** — 단지명/URL에 `'`가 있으면 `<script>` 전체가 SyntaxError로 죽는다. 배열이 3KB를 넘으면 map.html을 `var COMPLEXES = [\n/*__ROWS__*/\n];` 형태로 Write한 뒤, `old_string='/*__ROWS__*/'` → `new_string='{...},\n/*__ROWS__*/'`로 placeholder를 유지하며 Edit으로 항목을 누적한다(분할 Write 규칙의 예외).
+3. **좌표 미표시 건수**: `lat`/`lng`가 `null`인 단지 수를 세어 `.map-note`의 `{지도주석}`을 `"지도 미표시 단지 N개 (좌표 미확보) — 위 표에는 포함됨"`으로 채운다. 0개면 빈 문자열(`""`).
+4. Leaflet CSS `<link>`는 header.html(`<head>`)에, Leaflet JS `<script src>` + 지도 init JS는 map.html에 둔다(참조 템플릿대로). init JS는 좌표 0건·`typeof L === 'undefined'`(오프라인)를 모두 안전 처리하고, 팝업 링크는 `safeUrl`로 `http(s)`만 허용한다.
+5. **즉시** Write → `{RUN_DIR}/03_report/map.html`
+
 ### Step 4: footer.html 생성
 면책 조항 + `</div>` (container 닫기) + 정렬 JS 스크립트 + `</body></html>`
 
@@ -116,9 +134,11 @@ strategy-report 스킬의 참조 HTML 템플릿에서 `<!DOCTYPE html>`부터 `<
 ```bash
 cat {RUN_DIR}/03_report/header.html \
     {RUN_DIR}/03_report/scenario_*.html \
+    {RUN_DIR}/03_report/map.html \
     {RUN_DIR}/03_report/footer.html \
     > {RUN_DIR}/housing_report.html
 ```
+지도(map.html)는 표(scenario) 아래, 면책(footer) 위에 온다.
 
 ### Step 6: 검증
 1. `wc -c {RUN_DIR}/housing_report.html`로 파일 크기 확인
@@ -143,7 +163,7 @@ cat {RUN_DIR}/03_report/header.html \
 ## 에러 핸들링
 - 재무 데이터 또는 매물 데이터가 부분적으로 누락된 경우, 가용 데이터로 리포트 생성하고 누락 영역 명시
 - 시나리오 파일이 일부만 존재하면 존재하는 파일만으로 리포트 생성 (최소 1개)
-- HTML 렌더링 문제 방지를 위해 외부 CDN 의존 없이 인라인 CSS만 사용
+- 지도 섹션을 제외하고는 외부 CDN 의존 없이 인라인 CSS만 사용. 지도는 Leaflet(unpkg)+OSM 타일을 쓰되, 오프라인이면 타일만 미표시되고 표·마커 데이터는 영향받지 않도록 `typeof L === 'undefined'` 가드를 둔다
 - Write 실패 시 Bash heredoc(`cat > file << 'EOF'`)으로 대체
 
 ## 협업

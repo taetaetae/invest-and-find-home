@@ -63,11 +63,14 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
     "items": [
       {
         "article_no": "12345",
+        "complex_no": "12345",
         "complex_name": "래미안 마포리버뷰",
         "area_sqm": 84.98, "area_pyeong": 25.7,
         "floor_info": "19/25",
         "deposit_10k": 20000, "monthly_rent_10k": 160,
         "maintenance_fee_10k": 41,
+        "latitude": 37.5421, "longitude": 126.9389,
+        "household_count": 1234,
         "confirm_date": "2026-04-01",
         "use_approve_date": "2018-03-01",
         "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890"
@@ -75,6 +78,11 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
     ]
   }
   ```
+
+  > **좌표 필드 보존 (지도 기능 필수)**: MCP `naver_search_listings`의 `items[]`에 포함된
+  > `complex_no`/`latitude`/`longitude`/`household_count`를 **저장 시 잘라내지 말고 그대로 보존한다.**
+  > 이 4개 필드는 strategy-reporter가 단지별 지도 마커를 찍는 데 사용한다. 좌표가 `null`인 매물도
+  > 그대로 저장한다(지도에서만 제외, 표에는 유지).
 
 시나리오별 파일 형식 (`02_scenarios/{id}.json`, ~1-3KB):
   ```json
@@ -92,11 +100,14 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
       {
         "rank": 1,
         "article_no": "12345",
+        "complex_no": "12345",
         "complex_name": "래미안 마포리버뷰",
         "area_sqm": 84.98, "area_pyeong": 25.7,
         "floor_info": "19/25",
         "deposit_10k": 20000, "monthly_rent_10k": 160,
         "maintenance_fee_10k": 41,
+        "latitude": 37.5421, "longitude": 126.9389,
+        "household_count": 1234,
         "confirm_date": "2026-04-01",
         "use_approve_date": "2018-03-01",
         "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890"

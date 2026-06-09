@@ -12,6 +12,7 @@ from naver_land.naver_api import (
     get_cortars,
     get_region_list,
     search_listings,
+    _extract_complex_geo,
     _extract_use_approve_ymd,
     _match_maintenance_fee,
     _parse_article,
@@ -131,7 +132,8 @@ async def naver_get_listings(
         is_more_data: Whether more pages exist
     """
     try:
-        # 단지 상세에서 평형별 관리비 + 사용승인일 조회
+        # 단지 상세에서 평형별 관리비 + 사용승인일 + 좌표·세대수 조회
+        detail: dict[str, Any] = {}
         pyeong_detail_list: list[dict[str, Any]] = []
         use_approve_date = ""
         try:
@@ -139,15 +141,31 @@ async def naver_get_listings(
             pyeong_detail_list = detail.get("complexPyeongDetailList", [])
             use_approve_date = _extract_use_approve_ymd(detail)
         except Exception:
-            pass
+            detail = {}
+
+        # 단지 좌표·세대수 (지도 마커용). 단일 단지 조회는 cpx가 없으므로 상세만 사용.
+        latitude, longitude, household_count = _extract_complex_geo({}, detail)
 
         data = await get_articles(complex_no, trade_type, page)
         article_list = data.get("articleList", [])
-        complex_name = article_list[0].get("articleName", "") if article_list else ""
+
+        # 단지명: 상세(complexName)를 우선 사용하고, 없으면 매물명으로 폴백
+        # (search_listings 경로는 cpx.complexName을 쓰므로 지도 라벨 단지명을 두 경로에서 일치시킨다)
+        complex_detail = detail.get("complexDetail") if isinstance(detail, dict) else None
+        complex_name = ""
+        if isinstance(complex_detail, dict):
+            complex_name = complex_detail.get("complexName", "") or ""
+        if not complex_name and isinstance(detail, dict):
+            complex_name = detail.get("complexName", "") or ""
+        if not complex_name:
+            complex_name = article_list[0].get("articleName", "") if article_list else ""
 
         articles = []
         for a in article_list:
-            parsed = _parse_article(a, complex_name, complex_no, use_approve_date)
+            parsed = _parse_article(
+                a, complex_name, complex_no, use_approve_date,
+                latitude, longitude, household_count,
+            )
             parsed["maintenance_fee_10k"] = _match_maintenance_fee(
                 pyeong_detail_list, parsed["area_name"], parsed["area_sqm"],
             )

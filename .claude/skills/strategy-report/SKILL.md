@@ -83,6 +83,8 @@ cashflow 계산 공식:
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>주거 전략 리포트 — {지역명}</title>
+<!-- 지도(Leaflet): 지도 섹션 전용 외부 의존. 오프라인이면 타일만 미표시되고 표·마커 데이터는 영향 없음 -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,'Noto Sans KR',sans-serif;background:#f5f5f5;color:#333;min-width:1280px;line-height:1.6}
@@ -129,6 +131,23 @@ header h1{font-size:24px;margin-bottom:12px}
 .loan-card .label{font-size:12px;color:#666}
 .loan-card .value{font-size:18px;font-weight:700;color:#1a237e}
 footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
+/* 지도 섹션 (표 아래 통합 지도) */
+.map-section{background:#fff;border-radius:12px;padding:24px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+.map-section h2{font-size:18px;margin-bottom:4px;color:#1a237e}
+.map-meta{font-size:13px;color:#666;margin-bottom:12px}
+#map{width:100%;height:560px;border-radius:8px;border:1px solid #e0e0e0;z-index:0}
+.map-note{font-size:12px;color:#888;margin-top:8px}
+/* 가격표 핀 (Leaflet divIcon) — 좌표에 tip 정렬 */
+.price-pin{position:absolute;transform:translate(-50%,-100%);cursor:pointer}
+.price-pin .pin-body{background:#fff;border:2px solid var(--pin-color,#1a237e);border-radius:8px;padding:3px 8px;box-shadow:0 2px 6px rgba(0,0,0,0.25);white-space:nowrap;text-align:center}
+.price-pin .pin-rent{font-weight:700;font-size:12px;color:#1a237e}
+.price-pin .pin-sub{font-size:10px;color:var(--pin-color,#1a237e);font-weight:600}
+.price-pin .pin-tail{position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid var(--pin-color,#1a237e)}
+.pin-popup{font-size:12px;max-height:240px;overflow:auto}
+.pin-popup h3{font-size:13px;margin-bottom:6px;color:#1a237e}
+.pin-popup table{border-collapse:collapse;width:100%}
+.pin-popup th,.pin-popup td{border:1px solid #e0e0e0;padding:3px 5px;text-align:center;white-space:nowrap}
+.pin-popup a{color:#1565c0;text-decoration:none}
 </style>
 </head>
 <body>
@@ -232,6 +251,67 @@ footer{text-align:center;padding:24px;color:#999;font-size:12px;line-height:1.8}
 </div>
 <!-- 단일 시나리오 (반복 없음) -->
 
+<!-- 4-B. 매물 지도 (표 아래 통합 지도) — map.html 로 분할 생성 -->
+<div class="map-section">
+<h2>매물 지도 — 단지별 위치</h2>
+<div class="map-meta">마커 = 단지(같은 단지 매물은 하나로 묶음) · 색 = 목표 달성률(safe/warn/danger) · 클릭 시 단지 매물 목록</div>
+<div id="map"></div>
+<p class="map-note">{지도주석}</p><!-- 예: "지도 미표시 단지 3개 (좌표 미확보) — 위 표에는 포함됨". 미표시 0건이면 생략 또는 "" -->
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+// 단지별 마커 데이터 — strategy-reporter가 top50 매물을 complex_no로 집계해 채운다.
+// 한 단지 = 한 객체. lat/lng 없으면(null) 지도에서 제외(표에는 유지). minRent=단지 내 최저 월세(만원).
+// level=그 단지 최고 달성률 기준 safe/warn/danger. count=단지 내 매칭 매물 수.
+// ⚠ 반드시 "유효한 JSON 리터럴"로 작성한다: 모든 문자열은 큰따옴표(")로 감싸고 내부 " 와 \ 만 escape.
+//   (JSON은 JS의 부분집합이라 그대로 동작) 작은따옴표 문자열로 직렬화하지 말 것 — 단지명에 ' 가 있으면 깨진다.
+var COMPLEXES = [
+  // {"name":"래미안 마포리버뷰","lat":37.5421,"lng":126.9389,"households":1234,"count":3,"minRent":160,"level":"safe",
+  //  "listings":[{"floor":"19/25","pyeong":25.7,"deposit":"2억","rent":160,"fee":41,"rate":104,"url":"https://..."}]}
+];
+(function(){
+  var el = document.getElementById('map');
+  if (!el) return;
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function safeUrl(u){ u=String(u==null?'':u); return /^https?:\/\//i.test(u)?u:'#'; }  // javascript: 등 스킴 차단
+  var withGeo = COMPLEXES.filter(function(c){ return c.lat!=null && c.lng!=null; });
+  if (!withGeo.length) {  // 좌표 있는 단지 0건 — 지도 생성 자체를 생략(center 미설정 빈 박스 방지)
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#888">표시할 좌표가 있는 단지가 없습니다. (매물 표는 위에 표시됩니다)</div>';
+    return;
+  }
+  if (typeof L === 'undefined') {  // Leaflet 로드 실패(오프라인 등) — 타일만 미표시, 표는 영향 없음
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#888">지도를 불러오지 못했습니다. 인터넷 연결 후 새로고침하세요. (매물 표는 위에 그대로 표시됩니다)</div>';
+    return;
+  }
+  function popupHtml(c){
+    var rows=(c.listings||[]).map(function(l){
+      return '<tr><td>'+esc(l.floor)+'</td><td>'+esc(l.pyeong)+'평</td>'
+        +'<td>'+esc(l.deposit)+' / 월'+esc(l.rent)+'만</td>'
+        +'<td>'+(l.fee?esc(l.fee)+'만':'-')+'</td><td>'+(l.rate!=null?esc(l.rate):'-')+'%</td>'
+        +'<td><a href="'+esc(safeUrl(l.url))+'" target="_blank" rel="noopener">보기</a></td></tr>';
+    }).join('');
+    return '<div class="pin-popup"><h3>'+esc(c.name)+(c.households?' · '+esc(c.households)+'세대':'')+'</h3>'
+      +'<table><thead><tr><th>층</th><th>면적</th><th>보증/월세</th><th>관리비</th><th>달성률</th><th>링크</th></tr></thead>'
+      +'<tbody>'+rows+'</tbody></table></div>';
+  }
+  var COLORS={safe:'#43a047',warn:'#fb8c00',danger:'#e53935'}, pts=[];
+  var map=L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+  withGeo.forEach(function(c){
+    var color=COLORS[c.level]||'#1a237e';
+    var rentLabel=(c.minRent!=null&&c.minRent>0)?esc(c.minRent):'-';
+    var html='<div class="price-pin" style="--pin-color:'+color+'">'
+      +'<div class="pin-body"><div class="pin-rent">월'+rentLabel+'만</div>'
+      +'<div class="pin-sub">'+esc(c.name)+' · '+esc(c.count)+'건</div></div>'
+      +'<div class="pin-tail"></div></div>';
+    var icon=L.divIcon({className:'',html:html,iconSize:[0,0],iconAnchor:[0,0]});
+    L.marker([c.lat,c.lng],{icon:icon}).addTo(map).bindPopup(popupHtml(c),{maxWidth:340});
+    pts.push([c.lat,c.lng]);
+  });
+  map.fitBounds(pts,{padding:[40,40],maxZoom:16});
+})();
+</script>
+
 <!-- 5. 면책 조항 -->
 <footer>
 <p>본 리포트는 참고용이며 투자 조언이 아닙니다.<br>
@@ -275,25 +355,41 @@ document.querySelectorAll('th[data-sort-type]').forEach(th => {
 ### 디자인 원칙
 
 - 위 참조 템플릿의 CSS와 HTML 구조를 그대로 사용한다. 데이터만 실제 값으로 교체한다.
-- 외부 CDN/라이브러리 없이 순수 HTML+CSS+인라인 JS로 구현한다.
+- **지도 섹션을 제외하고는** 외부 CDN/라이브러리 없이 순수 HTML+CSS+인라인 JS로 구현한다. 지도 섹션만 Leaflet 1.9.4(unpkg CDN, SRI 핀)와 OpenStreetMap 타일을 사용한다. 지도는 별도 API 키가 필요 없으며, 오프라인일 때는 타일만 표시되지 않고 매물 표·마커 데이터는 영향받지 않는다(`typeof L === 'undefined'` 가드).
 - 색상 체계: safe(녹색 `#e8f5e9`), warn(주황 `#fff3e0`), danger(빨강 `#ffebee`)
 - 예상자산은 CSS 기반 바 차트(`.bar-container` + `.bar-fill`)로 시각화
 - 달성률 100% 이상 = badge-safe, 90~100% = badge-warn, 90% 미만 = badge-danger
 - 매물명은 네이버 부동산 매물 링크(`article_url`)로 연결, `target="_blank"`
 - 테이블 헤더 클릭으로 열별 정렬 (숫자/텍스트 자동 판별)
 
+### 지도 섹션 (표 아래 통합 지도)
+
+매물 표 바로 아래에 단지 위치를 보여주는 통합 지도 1개를 둔다.
+
+- **마커 단위 = 단지**: TOP 50 매물을 `complex_no`로 묶어(dedup) 단지당 마커 1개를 찍는다. 같은 단지의 좌표는 동일하므로 매물별로 찍으면 겹친다.
+- **마커 라벨(가격표 핀)**: `월{최저월세}만` (그 단지 내 최저 월세) + `{단지명} · {매물수}건`.
+- **마커 색 = 달성률**: 그 단지 매물 중 **최고 달성률** 기준 — 100%↑ `safe`(녹), 90~100% `warn`(주황), 90%↓ `danger`(빨). 표의 배지 색 임계값과 동일하게 맞춘다.
+- **클릭 팝업**: 단지명 · 세대수와, 그 단지 매칭 매물 목록(층/면적/보증금·월세/관리비/달성률 + 네이버 링크)을 표로 보여준다.
+- **데이터 출처**: 각 매물의 `latitude`/`longitude`/`household_count`/`complex_no`(MCP가 단지 좌표를 부착). 좌표가 `null`인 단지는 지도에서만 제외하고 표에는 유지하며, 제외 건수를 `.map-note`에 명시한다(`"지도 미표시 단지 N개 (좌표 미확보)"`). 미표시 0건이면 주석을 비운다.
+- **뷰포트**: 좌표가 있는 마커 전체에 `fitBounds`(자동 줌). 좌표 있는 단지가 0건이면 지도 대신 안내 문구를 표시한다.
+- **마커 데이터 직렬화**: `COMPLEXES`(map.html 내 `<script>`)는 **유효한 JSON 배열 리터럴**로 작성한다 — 모든 문자열은 큰따옴표(`"`)로 감싸고 값 내부의 `"`·`\`만 escape(JSON은 JS 부분집합이라 `var COMPLEXES = [JSON];`로 그대로 동작). **작은따옴표 직렬화 금지**(단지명에 `'`가 있으면 스크립트가 깨진다). 배열이 3KB를 넘으면 `var COMPLEXES = [\n/*__ROWS__*/\n];`로 Write한 뒤 `old_string='/*__ROWS__*/'` → `new_string='{...},\n/*__ROWS__*/'`로 항목을 누적한다(분할 Write 규칙의 예외).
+- **degradation**: 좌표 0건이면 지도 대신 안내 문구(템플릿이 처리), Leaflet 로드 실패(오프라인) 시 `typeof L` 가드로 안내. `minRent`/`rate`가 `null`·0이면 라벨/팝업에 `-`로 표기(템플릿 처리). 팝업 링크는 `safeUrl`로 `http(s)`만 허용한다.
+
 ## 출력 파일
 
-HTML을 분할 생성한 후 Bash cat으로 조합한다. 각 파일은 3KB 이하로 제한한다.
+HTML을 분할 생성한 후 Bash cat으로 조합한다. 각 파일은 3KB 이하로 제한한다(단, `map.html`의 `COMPLEXES` 데이터 블록은 단지 수에 따라 초과 가능 — Edit append로 누적).
 
 ```
 {RUN_DIR}/
 ├── 03_report/
-│   ├── header.html              # DOCTYPE + CSS + 헤더 + 매트릭스 + 대출요약 (~3KB)
-│   ├── scenario_{id}.html       # 시나리오별 섹션 (각 ~2-3KB)
+│   ├── header.html              # DOCTYPE + Leaflet CSS + 인라인 CSS + 헤더 + 매트릭스 + 대출요약 (~3KB)
+│   ├── scenario_{id}.html       # 시나리오 섹션(표) (~2-3KB)
+│   ├── map.html                 # 지도 섹션 + Leaflet JS + COMPLEXES 데이터 + 지도 init JS
 │   └── footer.html              # 면책 조항 + 정렬 JS (~1KB)
 └── housing_report.html          # 최종 조합 (Bash cat)
 ```
+
+cat 조합 순서: `header.html → scenario_{id}.html → map.html → footer.html` (지도는 표 아래, 면책 위).
 
 03_strategies.json은 생성하지 않는다 (HTML에 직접 포함).
 

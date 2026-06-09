@@ -56,6 +56,7 @@ naver-land-mcp 서버가 제공하는 도구 중 이 하네스에서 사용하�
 ```json
 {
   "article_no": "매물번호",
+  "complex_no": "12345",
   "complex_name": "단지명",
   "article_name": "매물명",
   "area_sqm": 84.5,
@@ -64,6 +65,9 @@ naver-land-mcp 서버가 제공하는 도구 중 이 하네스에서 사용하�
   "deposit_10k": 20000,
   "monthly_rent_10k": 160,
   "maintenance_fee_10k": 41,
+  "latitude": 37.5421,
+  "longitude": 126.9389,
+  "household_count": 1234,
   "direction": "남향",
   "confirm_date": "2026-04-01",
   "use_approve_date": "2018-03-01",
@@ -73,6 +77,10 @@ naver-land-mcp 서버가 제공하는 도구 중 이 하네스에서 사용하�
   "tag_list": ["역세권", "주차가능"]
 }
 ```
+
+- `latitude`/`longitude`: 단지 좌표(지도 마커용). 네이버 단지목록/상세에서 추출하며, 누락 시 `null`이다.
+- `household_count`: 단지 세대수(지도 팝업용). 누락 시 `0`.
+- `complex_no`: 단지 식별자. 지도에서 같은 단지의 매물을 묶는(dedup) 키로 쓴다.
 
 ## 금융 계산 도구
 

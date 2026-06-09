@@ -216,6 +216,63 @@ def _extract_use_approve_ymd(detail: dict[str, Any]) -> str:
     return ""
 
 
+def _coord(value: Any) -> float | None:
+    """좌표 문자열/숫자를 float로 변환한다. 0·빈값·파싱불가는 None(무효).
+
+    네이버 실제 좌표는 37.x/127.x 대이므로 0은 응답 누락으로 간주한다.
+    """
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if result != 0 else None
+
+
+def _extract_complex_geo(
+    cpx: dict[str, Any],
+    detail: dict[str, Any],
+) -> tuple[float | None, float | None, int]:
+    """단지 좌표(위도/경도)와 세대수를 추출한다.
+
+    네이버는 버전에 따라 좌표·세대수를 단지목록(cpx) 또는 단지상세(detail)의
+    최상위 또는 complexDetail 하위에 둔다. 키 표기도 totalHouseholdCount /
+    totalHouseHoldCount 로 일관적이지 않다. 모든 위치·표기를 순서대로 시도하고,
+    찾지 못하면 좌표는 None, 세대수는 0을 반환한다(지도 미표시 처리용).
+
+    좌표가 0/빈값이면 무효(네이버 응답 누락)로 간주한다 — 실제 좌표는 37.x/127.x 대.
+    """
+
+    def pick(source: Any, *keys: str) -> Any:
+        if not isinstance(source, dict):
+            return None
+        for key in keys:
+            value = source.get(key)
+            if value not in (None, "", 0, "0", 0.0):
+                return value
+        return None
+
+    complex_detail = detail.get("complexDetail") if isinstance(detail, dict) else None
+    sources = [s for s in (cpx, complex_detail, detail) if isinstance(s, dict)]
+
+    lat = lon = None
+    households: Any = None
+    for source in sources:
+        if lat is None:
+            lat = pick(source, "latitude", "lat")
+        if lon is None:
+            lon = pick(source, "longitude", "lon")
+        if households is None:
+            households = pick(source, "totalHouseholdCount", "totalHouseHoldCount")
+
+    def to_int(value: Any) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
+
+    return _coord(lat), _coord(lon), to_int(households)
+
+
 def _match_maintenance_fee(
     pyeong_detail_list: list[dict[str, Any]],
     area_name: str,
@@ -256,13 +313,26 @@ def _parse_article(
     complex_name: str,
     complex_no: str = "",
     use_approve_date: str = "",
+    latitude: float | None = None,
+    longitude: float | None = None,
+    household_count: int = 0,
 ) -> dict[str, Any]:
     """네이버 매물 응답을 통일 포맷으로 변환한다.
 
     use_approve_date: 단지 사용승인일(YYYYMMDD). 단지 목록/상세에서 조회하여 전달한다.
+    latitude/longitude: 단지 좌표(지도 마커용). 단지 목록/상세에서 조회하여 전달한다.
+      전달값이 없으면(None) 매물(article) 자체의 latitude/longitude로 폴백한다 —
+      네이버 매물 응답은 보통 매물별 좌표를 함께 내려주므로 단지 좌표 누락 시 대비책이 된다.
+    household_count: 단지 세대수(지도 팝업용).
     """
     deposit_10k = _parse_price(article.get("dealOrWarrantPrc", "0"))
     monthly_rent_10k = _parse_price(article.get("rentPrc", "0"))
+
+    # 단지 좌표가 없으면 매물 자체 좌표로 폴백(키명 가정 실패·단일 단지 조회 대비)
+    if latitude is None:
+        latitude = _coord(article.get("latitude"))
+    if longitude is None:
+        longitude = _coord(article.get("longitude"))
 
     area2 = article.get("area2", 0)
     area_sqm = float(area2) if area2 else 0.0
@@ -300,6 +370,9 @@ def _parse_article(
         "deposit_10k": deposit_10k,
         "monthly_rent_10k": monthly_rent_10k,
         "maintenance_fee_10k": 0,
+        "latitude": latitude,
+        "longitude": longitude,
+        "household_count": household_count,
         "direction": direction,
         "confirm_date": confirm_ymd,
         "use_approve_date": use_approve_date,
@@ -423,6 +496,7 @@ async def search_listings(
             total_complex_count += 1
 
             # 단지 상세 조회 (평형별 관리비 + 사용승인일 보강)
+            detail: dict[str, Any] = {}
             pyeong_detail_list: list[dict[str, Any]] = []
             try:
                 detail = await get_complex_detail(complex_no)
@@ -430,7 +504,10 @@ async def search_listings(
                 # 상세에 사용승인일이 있으면 우선 사용하고, 없으면 단지목록 값을 유지
                 use_approve_ymd = _extract_use_approve_ymd(detail) or use_approve_ymd
             except Exception:
-                pass
+                detail = {}
+
+            # 단지 좌표·세대수 (지도 마커용). 단지목록(cpx)과 상세 모두 시도.
+            latitude, longitude, household_count = _extract_complex_geo(cpx, detail)
 
             await asyncio.sleep(_REQUEST_DELAY)
 
@@ -441,7 +518,10 @@ async def search_listings(
 
             article_list = data.get("articleList", [])
             for article in article_list:
-                parsed = _parse_article(article, complex_name, complex_no, use_approve_ymd)
+                parsed = _parse_article(
+                    article, complex_name, complex_no, use_approve_ymd,
+                    latitude, longitude, household_count,
+                )
                 parsed["maintenance_fee_10k"] = _match_maintenance_fee(
                     pyeong_detail_list, parsed["area_name"], parsed["area_sqm"],
                 )
