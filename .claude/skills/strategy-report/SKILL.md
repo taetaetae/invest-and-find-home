@@ -433,7 +433,8 @@ HTML을 분할 생성한 후 Bash cat으로 조합한다. 각 파일은 3KB 이�
 │   ├── scenario_{id}.html       # 시나리오 섹션(표) (~2-3KB)
 │   ├── map.html                 # 지도 섹션 + Leaflet JS + COMPLEXES 데이터 + 지도 init JS
 │   └── footer.html              # 면책 조항 + 정렬 JS (~1KB)
-└── housing_report.html          # 최종 조합 (Bash cat)
+└── {report_filename}            # 최종 조합 (Bash cat) — user_params.json의 report_filename
+                                 #   (예: housing_report_서울-마포구_2026-06-10_1430_a3f2.html)
 ```
 
 cat 조합 순서: `header.html → scenario_{id}.html → map.html → footer.html` (지도는 표 아래, 면책 위).

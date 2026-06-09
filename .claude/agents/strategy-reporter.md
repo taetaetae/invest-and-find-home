@@ -71,6 +71,7 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
 - **달성률은 투자 자산 기준(보수적)**: 보증금 자기자본 회수분을 예상자산에 더하지 않는다. footer에 이 가정을 명시(템플릿에 포함)
 
 ## 입력/출력 프로토콜
+- 입력: `{RUN_DIR}/00_input/user_params.json` (조회 기준 + `report_filename` 최종 리포트 파일명)
 - 입력: `{RUN_DIR}/01_financial_simulation.json`
 - 입력: `{RUN_DIR}/02_property_research.json` (인덱스 — 시나리오 파일 경로 목록)
 - 입력: `{RUN_DIR}/02_scenarios/{scenario_id}.json` (시나리오별 개별 파일)
@@ -79,7 +80,7 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
   - `{RUN_DIR}/03_report/scenario_{id}.html` — 시나리오 섹션(표) (~2-3KB)
   - `{RUN_DIR}/03_report/map.html` — 지도 섹션 + Leaflet JS + COMPLEXES 데이터 + 지도 init JS
   - `{RUN_DIR}/03_report/footer.html` — 면책 조항 + 정렬 JS (~1KB)
-  - `{RUN_DIR}/housing_report.html` — 최종 조합 (Bash cat으로 생성)
+  - `{RUN_DIR}/{report_filename}` — 최종 조합 (Bash cat으로 생성). 파일명은 user_params.json의 `report_filename` 값을 그대로 사용하며 임의로 만들지 않는다 (예: `housing_report_서울-마포구_2026-06-10_1430_a3f2.html`)
 
 ## HTML 분할 생성 워크플로우
 
@@ -89,7 +90,7 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
 1. `mkdir -p {RUN_DIR}/03_report` (Bash)
 2. `{RUN_DIR}/01_financial_simulation.json` 읽기
 3. `{RUN_DIR}/02_property_research.json` (인덱스) 읽기 → 시나리오 파일 경로 + `filter`(min/max_area_sqm, max_monthly_rent_10k) + `region.name` 확인
-4. `{RUN_DIR}/00_input/user_params.json` 읽기 → 헤더 "조회 기준"용 값(region, min/max_area_sqm, max_monthly_rent_10k, housing_type) 확보
+4. `{RUN_DIR}/00_input/user_params.json` 읽기 → 헤더 "조회 기준"용 값(region, min/max_area_sqm, max_monthly_rent_10k, housing_type) + `report_filename`(Step 5 최종 조합의 출력 파일명) 확보
 
 ### Step 2: header.html 생성
 strategy-report 스킬의 참조 HTML 템플릿에서 `<!DOCTYPE html>`부터 `</div><!-- loan-summary -->` 까지를 생성한다.
@@ -140,12 +141,12 @@ cat {RUN_DIR}/03_report/header.html \
     {RUN_DIR}/03_report/scenario_*.html \
     {RUN_DIR}/03_report/map.html \
     {RUN_DIR}/03_report/footer.html \
-    > {RUN_DIR}/housing_report.html
+    > "{RUN_DIR}/{report_filename}"
 ```
 지도(map.html)는 표(scenario) 아래, 면책(footer) 위에 온다.
 
 ### Step 6: 검증
-1. `wc -c {RUN_DIR}/housing_report.html`로 파일 크기 확인
+1. `wc -c "{RUN_DIR}/{report_filename}"`로 파일 크기 확인
 2. 0바이트이면 Step 5 재실행
 
 ## 팀 통신 프로토콜

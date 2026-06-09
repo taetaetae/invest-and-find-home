@@ -15,7 +15,7 @@ description: "부동산 월세 전략 어드바이저. 자산 증식 목표, 대
 |------|-------------|---------------|------|------|------|
 | financial-planner | `.claude/agents/financial-planner.md` | general-purpose | 재무 시뮬레이션 | financial-simulation | `{RUN_DIR}/01_financial_simulation.json` |
 | property-researcher | `.claude/agents/property-researcher.md` | general-purpose | 매물 조사 | property-search | `{RUN_DIR}/02_property_research.json` |
-| strategy-reporter | `.claude/agents/strategy-reporter.md` | general-purpose | 전략 종합 + 리포트 | strategy-report | `{RUN_DIR}/housing_report.html` |
+| strategy-reporter | `.claude/agents/strategy-reporter.md` | general-purpose | 전략 종합 + 리포트 | strategy-report | `{RUN_DIR}/{report_filename}` |
 
 모든 에이전트는 `model: "opus"` 로 호출한다.
 
@@ -23,17 +23,22 @@ description: "부동산 월세 전략 어드바이저. 자산 증식 목표, 대
 
 ### Phase 1: 대화형 단계별 입력 수집
 
-**실행 시작 시 타임스탬프 디렉토리 생성:**
-매 실행마다 `_workspace/YYYY-MM-DD_HHmm/` 형태의 새 디렉토리를 생성한다. (예: `_workspace/2026-04-09_2247/`)
+**실행 시작 시 타임스탬프+유니크 디렉토리 생성:**
+매 실행마다 `_workspace/YYYY-MM-DD_HHmm_xxxx/` 형태의 새 디렉토리를 생성한다. `xxxx`는 랜덤 4자리 hex로, 동시/병렬 실행이 같은 분에 시작해도 디렉토리가 겹치지 않는다. (예: `_workspace/2026-04-09_2247_a3f2/`)
 이후 모든 산출물은 이 디렉토리 안에 저장한다. 이전 실행 결과는 그대로 보존되어 과거 분석과 비교할 수 있다.
 
 ```bash
-# 실행 시작 시 Bash로 타임스탬프 디렉토리 생성
-RUN_DIR="_workspace/$(date '+%Y-%m-%d_%H%M')"
+# 실행 시작 시 Bash로 타임스탬프+랜덤 suffix 디렉토리 생성
+# mkdir(-p 없이)의 원자성으로 만에 하나의 랜덤 충돌까지 차단
+mkdir -p _workspace
+RUN_DIR="_workspace/$(date '+%Y-%m-%d_%H%M')_$(openssl rand -hex 2)"
+until mkdir "$RUN_DIR" 2>/dev/null; do
+  RUN_DIR="_workspace/$(date '+%Y-%m-%d_%H%M')_$(openssl rand -hex 2)"
+done
 mkdir -p "$RUN_DIR/00_input"
 ```
 
-이후 모든 파일 경로에서 `_workspace/`를 `_workspace/YYYY-MM-DD_HHmm/`으로 대체한다.
+이후 모든 파일 경로에서 `_workspace/`를 `_workspace/YYYY-MM-DD_HHmm_xxxx/`으로 대체한다.
 에이전트 프롬프트에 `RUN_DIR` 경로를 전달하여 모든 팀원이 같은 디렉토리에 저장하도록 한다.
 
 사용자와 자연스러운 대화를 통해 단계별로 정보를 수집한다. 한꺼번에 모든 정보를 요구하지 않고, 각 단계에서 1~2개씩 물어보며 맥락을 쌓아간다. 사용자가 처음 트리거하면 인사와 함께 첫 질문을 시작한다.
@@ -125,6 +130,10 @@ mkdir -p "$RUN_DIR/00_input"
 
 확인 후 `{RUN_DIR}/00_input/user_params.json`에 저장:
 
+**리포트 파일명도 이 시점에 확정한다**: `report_filename = "housing_report_{region_slug}_{RUN_DIR의 basename}.html"`.
+`region_slug`는 `region`에서 한글·영문·숫자 외 문자(공백/쉼표/슬래시/괄호 등)를 하이픈(`-`)으로 치환하고, 연속 하이픈을 하나로 압축, 앞뒤 하이픈을 제거한 값이다.
+(예: `region="서울 마포구"`, `RUN_DIR=_workspace/2026-06-10_1430_a3f2` → `housing_report_서울-마포구_2026-06-10_1430_a3f2.html`)
+
 ```json
 {
   "total_asset_10k": 0,
@@ -133,6 +142,7 @@ mkdir -p "$RUN_DIR/00_input"
   "monthly_rate_pct": 0,
   "min_achievement_pct": 70,
   "region": "서울 마포구",
+  "report_filename": "housing_report_서울-마포구_2026-06-10_1430_a3f2.html",
   "housing_type": "월세",
   "min_area_sqm": null,
   "max_area_sqm": null,
@@ -243,7 +253,8 @@ Agent(
     2. 시나리오별로 HTML 섹션을 {RUN_DIR}/03_report/scenario_{id}.html에 개별 Write
     3. {RUN_DIR}/03_report/header.html에 DOCTYPE+CSS+사용자 조건 요약 Write
     4. {RUN_DIR}/03_report/footer.html에 면책 조항+닫기 태그 Write
-    5. Bash로 cat header.html scenario_*.html footer.html > housing_report.html 조합
+    5. Bash로 cat header.html scenario_*.html footer.html > {RUN_DIR}/{report_filename} 조합
+       (report_filename은 {RUN_DIR}/00_input/user_params.json의 report_filename 값을 그대로 사용)
     각 Write의 content는 3KB(100줄) 이하로 제한하세요.
     03_strategies.json은 생성하지 마세요 (HTML에 직접 포함).
 
@@ -286,7 +297,7 @@ TaskCreate([
 |------|----------|
 | financial-planner | `{RUN_DIR}/01_financial_simulation.json` |
 | property-researcher | `{RUN_DIR}/02_raw/listings.json` + `{RUN_DIR}/02_scenarios/*.json` + `{RUN_DIR}/02_property_research.json` (인덱스) |
-| strategy-reporter | `{RUN_DIR}/03_report/*.html` + `{RUN_DIR}/housing_report.html` (Bash cat 조합) |
+| strategy-reporter | `{RUN_DIR}/03_report/*.html` + `{RUN_DIR}/{report_filename}` (Bash cat 조합) |
 
 **리더 모니터링:**
 - 팀원 유휴 알림 수신 시 진행 상황 확인
@@ -301,7 +312,7 @@ TaskCreate([
    - `{RUN_DIR}/02_scenarios/` 디렉토리에 시나리오별 파일 존재 확인
    - `{RUN_DIR}/02_property_research.json` 인덱스 파일 존재 확인
    - `{RUN_DIR}/03_report/` 디렉토리에 HTML 파트 파일 존재 확인
-   - `{RUN_DIR}/housing_report.html` 최종 리포트 존재 + 크기 > 0 확인
+   - `{RUN_DIR}/{report_filename}` (user_params.json의 `report_filename`) 최종 리포트 존재 + 크기 > 0 확인
 3. 리포트 내용 간략 검증:
    - 달성률 구간별 매물(건수 제한 없음, 안전/절충/공격)이 포함되었는지
    - 각 매물에 예상 자산 달성률·구 이름(매물명[구명])이 표시되었는지
@@ -309,10 +320,10 @@ TaskCreate([
    - 금액 계산에 명백한 오류가 없는지
 4. 사용자에게 결과 요약 보고:
    - 달성률 구간별 매물(건수 제한 없음) 한줄 요약
-   - `{RUN_DIR}/housing_report.html` 파일 경로
+   - `{RUN_DIR}/{report_filename}` 파일 경로
 5. 리포트를 크롬 브라우저로 자동 열기:
    ```bash
-   open -a "Google Chrome" {RUN_DIR}/housing_report.html
+   open -a "Google Chrome" "{RUN_DIR}/{report_filename}"
    ```
 
 ### Phase 5: 정리
@@ -333,7 +344,7 @@ TaskCreate([
      ↓ (SendMessage: 시뮬레이션 완료)
 [property-researcher] → {RUN_DIR}/02_raw/listings.json + {RUN_DIR}/02_scenarios/*.json + {RUN_DIR}/02_property_research.json (인덱스)
      ↓ (SendMessage: 매물 조사 완료)
-[strategy-reporter] → {RUN_DIR}/03_report/*.html → Bash cat → {RUN_DIR}/housing_report.html
+[strategy-reporter] → {RUN_DIR}/03_report/*.html → Bash cat → {RUN_DIR}/{report_filename}
      ↓
 [리더: 검증 + 사용자 전달]
 ```
@@ -360,8 +371,8 @@ TaskCreate([
    - financial-planner가 단일 시나리오 시뮬레이션 완료
    - property-researcher가 마포구 현재 매물 수집 → 02_raw/listings.json + 02_scenarios/*.json + 인덱스 저장
    - strategy-reporter가 시나리오 파일 읽기 → cashflow 계산 → HTML 분할 생성 → cat 조합
-5. Phase 4에서 02_raw/listings.json, 02_scenarios/, 03_report/ 디렉토리 + housing_report.html 검증 후 사용자에게 전달
-6. 예상 결과: `housing_report.html` 생성, 달성률 구간별 매물(건수 제한 없음) 비교표 포함
+5. Phase 4에서 02_raw/listings.json, 02_scenarios/, 03_report/ 디렉토리 + {report_filename} 검증 후 사용자에게 전달
+6. 예상 결과: `housing_report_서울-마포구_{RUN_DIR명}.html` 생성, 달성률 구간별 매물(건수 제한 없음) 비교표 포함
 
 ### 에러 흐름
 1. Phase 3에서 property-researcher가 MCP 호출 실패
