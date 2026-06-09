@@ -37,6 +37,8 @@ naver_search_listings(cortar_no="1144000000", trade_type="B2")
 - `trade_type="B2"`: 전월세 매물 조회 (월세만 필터링은 응답에서 수행)
 - 응답에서 `monthly_rent_10k > 0`인 매물만 사용 (전세 제외)
 
+**구 이름 스탬프 (`gu_name`)** — 여러 구를 조회할 때(예: "성남 전체" = 수정구/중원구/분당구), 각 구는 `naver_search_region`으로 개별 cortarNo를 얻어 따로 조회한다. 이때 **그 구에서 수집한 매물 각각에 `gu_name` 필드를 찍어 저장한다**(예: `"gu_name": "중원구"`). 매물 응답 자체에는 구 정보가 없으므로, 조회 중인 구 이름을 코드 쪽에서 스탬프해야 한다. 리포트 표에 `매물명[구명]` 형식으로 표시하는 데 쓰인다. 단일 구만 조회할 때도 그 구 이름을 찍는다.
+
 ### 3. 매물 유형별 조회
 
 | 도구 | 대상 | 비고 |
@@ -56,12 +58,13 @@ naver_search_listings(cortar_no="1144000000", trade_type="B2")
 
 ### 4. 데이터 필터링
 
-financial-simulation의 시나리오 최대 금액을 기준으로 필터링한다:
+financial-simulation의 시나리오 **공격 한계선(`max_wolse_deposit_10k`)**을 1차 필터 상한으로 사용한다. 이 상한은 사용자가 감수하는 최소 달성률(`min_achievement_pct`, 기본 70%)에 해당하는 보증금 한계다:
 
 - 월세: `deposit_10k <= max_wolse_deposit_10k` AND `monthly_rent_10k <= max_wolse_monthly_10k`인 매물
 - 사용자가 월세 상한선(`max_monthly_rent_10k`)을 지정한 경우, `monthly_rent_10k <= max_monthly_rent_10k` 조건도 추가 적용
 - 사용자가 사용승인일 조건(`min_use_approve_year`)을 지정한 경우, `use_approve_date`의 연도가 `min_use_approve_year` 이상인 매물만 남긴다 (준공 시점 필터)
-- 시나리오 상한선 이하에서 TOP 50을 선별한다
+- 1차 필터를 통과한 매물을 **보증금 내림차순(가장 공격적인 순)으로 최대 150건**까지 `listings` 배열에 담는다(파일 크기 안전 상한). `matched_count`에는 1차 필터를 통과한 **전체 건수**를 기록한다.
+- 이 상한은 **거친 1차 필터**다. 매물별 실제 달성률(`min_achievement_pct` 하한) 정밀 필터와 **최종 100건 확정·달성률 구간 그룹핑**은 strategy-reporter가 cashflow 계산 후 수행한다.
 - cashflow 계산(보증금 구성, 대출 이자, 월 총 주거비, 남은 투자금)은 수행하지 않는다 — strategy-reporter가 담당
 
 ### 5. 반환 데이터 구조
@@ -77,6 +80,7 @@ financial-simulation의 시나리오 최대 금액을 기준으로 필터링한�
     {
       "article_no": "12345",
       "complex_name": "래미안 마포리버뷰",
+      "gu_name": "마포구",
       "article_name": "103동",
       "area_sqm": 84.5,
       "area_pyeong": 25.6,
@@ -102,23 +106,29 @@ financial-simulation의 시나리오 최대 금액을 기준으로 필터링한�
   "scenario_id": "목표12억_수익률2%",
   "target_asset_10k": 120000,
   "monthly_rate_pct": 2,
+  "min_achievement_pct": 70,
   "feasible": true,
   "budget": {
-    "max_wolse_deposit_10k": 28811,
+    "safe_wolse_deposit_10k": 28811,
+    "max_wolse_deposit_10k": 51200,
     "max_wolse_monthly_10k": 253
   },
-  "matched_count": 42,
-  "top50": [
+  "matched_count": 88,
+  "listings": [
     {
       "rank": 1,
       "article_no": "12345",
       "complex_name": "래미안 마포리버뷰",
+      "gu_name": "마포구",
       "area_sqm": 84.5,
       "area_pyeong": 25.6,
       "floor_info": "15/25",
       "deposit_10k": 20000,
       "monthly_rent_10k": 160,
       "maintenance_fee_10k": 41,
+      "latitude": 37.5421,
+      "longitude": 126.9389,
+      "household_count": 1234,
       "confirm_date": "2026-04-01",
       "use_approve_date": "2018-03-01",
       "article_url": "https://new.land.naver.com/complexes/12345?articleNo=67890"
@@ -126,6 +136,8 @@ financial-simulation의 시나리오 최대 금액을 기준으로 필터링한�
   ]
 }
 ```
+
+> `listings`는 1차 필터(공격 한계선)를 통과한 매물을 보증금 내림차순으로 최대 150건까지 담은 **후보 집합**이다. strategy-reporter가 달성률을 계산해 `min_achievement_pct` 미만을 제외하고 달성률 높은 순 최대 100건으로 최종 확정한다. `matched_count`는 1차 필터 통과 전체 건수.
 
 ### 6. 분석 지표
 
@@ -149,7 +161,7 @@ cashflow 계산(보증금 구성, 대출 이자, 월 총 주거비, 남은 투�
 ├── 02_raw/
 │   └── listings.json      # 현재 매물 전체 (월세만)
 ├── 02_scenarios/
-│   ├── 목표12억_수익률2%.json   # 시나리오 TOP 50
+│   ├── 목표12억_수익률2%.json   # 시나리오 후보 매물(listings, 공격 한계선 1차 필터, 최대 150건)
 │   ├── 목표12억_수익률3%.json
 │   └── ...
 └── 02_property_research.json   # 인덱스 파일 (메타데이터 + 파일 경로 목록)

@@ -10,7 +10,7 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
 ## 핵심 역할
 1. 지역 코드 조회 — 사용자 지정 지역의 네이버 cortarNo 코드 확인
 2. 현재 매물 데이터 수집 — 네이버 부동산에 등록된 매물 조회, **즉시 파일 저장**
-3. 시나리오 매물 필터링 — financial-planner가 산출한 최대 금액 기준으로 TOP 50 선별, **시나리오 파일 저장**
+3. 시나리오 매물 필터링 — financial-planner의 **공격 한계선(`max_wolse_deposit_10k`)** 기준으로 후보 매물 선별(보증금 내림차순 최대 150건), **시나리오 파일 저장**
 4. 인덱스 파일 생성 — 메타데이터와 파일 경로 목록만 포함
 
 ## 데이터 소스
@@ -27,13 +27,14 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
 - 날짜 필드(`confirm_date` 등록일, `use_approve_date` 사용승인일)는 `YYYY-MM-DD` 형식으로 통일한다. MCP가 `YYYYMMDD`(예: `20180301`)로 반환하면 `2018-03-01`로 변환하여 저장하고, 값이 없으면 빈 문자열(`""`)로 둔다.
 - `use_approve_date`는 단지 사용승인일(준공 시점)이다. MCP의 `naver_search_listings`가 매물별로 함께 반환한다.
 - `min_use_approve_year`(user_params)가 null이 아니면 `use_approve_date` 연도가 그 값 이상인 매물만 남긴다 (준공 시점 필터). 이 필터는 수집 단계(Phase A)에서 적용한다.
+- **`gu_name` 스탬프**: 여러 구를 조회할 때(예: "성남 전체" → 수정구/중원구/분당구 각각 `naver_search_region`으로 코드를 얻어 따로 조회) 각 구에서 수집한 매물에 그 구 이름을 `gu_name` 필드로 찍어 저장한다(예: `"gu_name": "중원구"`). 매물 응답에는 구 정보가 없으므로 조회 중인 구 이름을 직접 스탬프해야 한다. 단일 구만 조회할 때도 찍는다. 리포트 표의 `매물명[구명]` 표기에 쓰인다.
 
 ## 입력/출력 프로토콜
 - 입력: `{RUN_DIR}/00_input/user_params.json` (지역 정보)
 - 입력: `{RUN_DIR}/01_financial_simulation.json` (시나리오별 최대 금액)
 - 출력 (다중 파일 구조):
   - `{RUN_DIR}/02_raw/listings.json` — 현재 등록 매물 전체 (월세만 필터링, 즉시 저장)
-  - `{RUN_DIR}/02_scenarios/{scenario_id}.json` — 시나리오 필터링 결과 TOP 50
+  - `{RUN_DIR}/02_scenarios/{scenario_id}.json` — 시나리오 1차 필터 후보 매물(`listings`, 보증금 내림차순 최대 150건)
   - `{RUN_DIR}/02_property_research.json` — 인덱스 파일 (메타데이터 + 파일 경로 목록)
 
 인덱스 파일 형식 (`02_property_research.json`, ~500B):
@@ -65,6 +66,7 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
         "article_no": "12345",
         "complex_no": "12345",
         "complex_name": "래미안 마포리버뷰",
+        "gu_name": "마포구",
         "area_sqm": 84.98, "area_pyeong": 25.7,
         "floor_info": "19/25",
         "deposit_10k": 20000, "monthly_rent_10k": 160,
@@ -90,18 +92,21 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
     "scenario_id": "목표12억_수익률2%",
     "target_asset_10k": 120000,
     "monthly_rate_pct": 2,
+    "min_achievement_pct": 70,
     "feasible": true,
     "budget": {
-      "max_wolse_deposit_10k": 28811,
+      "safe_wolse_deposit_10k": 28811,
+      "max_wolse_deposit_10k": 51200,
       "max_wolse_monthly_10k": 253
     },
-    "matched_count": 42,
-    "top50": [
+    "matched_count": 88,
+    "listings": [
       {
         "rank": 1,
         "article_no": "12345",
         "complex_no": "12345",
         "complex_name": "래미안 마포리버뷰",
+        "gu_name": "마포구",
         "area_sqm": 84.98, "area_pyeong": 25.7,
         "floor_info": "19/25",
         "deposit_10k": 20000, "monthly_rent_10k": 160,
@@ -162,17 +167,20 @@ description: "부동산 매물 조사 전문가. naver-land-mcp를 활용하여 
 
 핵심: 시점(year_month) 파라미터 없이 현재 매물을 한 번에 수집한다. 월별 반복 조회가 필요 없다.
 
-### Phase B: 시나리오별 필터링 + 개별 저장
+### Phase B: 시나리오별 1차 필터 + 개별 저장
 
 1. `{RUN_DIR}/01_financial_simulation.json` 읽기
 2. `{RUN_DIR}/02_raw/listings.json` 읽기
 3. 각 시나리오별로:
-   a. budget 조건으로 매물 필터링 (deposit_10k <= max_wolse_deposit_10k AND monthly_rent_10k <= max_wolse_monthly_10k)
-   b. 면적 내림차순 TOP 50 선별 (동일 면적이면 보증금 내림차순)
-   c. **즉시** Write → `{RUN_DIR}/02_scenarios/{scenario_id}.json` (~1-2KB)
-4. feasible하지 않은 시나리오도 개별 파일로 저장 (`"top50": []`, ~200B)
+   a. budget **공격 한계선**으로 1차 필터 (deposit_10k <= max_wolse_deposit_10k AND monthly_rent_10k <= max_wolse_monthly_10k). `max_wolse_deposit_10k`은 `min_achievement_pct`% 달성에 해당하는 보증금 상한이다.
+   b. 1차 필터 통과 매물을 **보증금 내림차순(가장 공격적인 순)으로 최대 150건** 선별해 `listings` 배열에 담는다(rank 부여). `matched_count`에는 1차 필터 통과 **전체** 건수를 기록한다.
+   c. **즉시** Write → `{RUN_DIR}/02_scenarios/{scenario_id}.json`. listings가 많아 3KB를 넘으면 Write로 골격을 만든 뒤 Edit으로 매물을 나눠 누적한다.
+4. feasible하지 않은 시나리오도 개별 파일로 저장 (`"listings": []`, ~200B)
 
-핵심: cashflow_comment를 계산하지 않는다. 매물의 기본 정보만 저장한다.
+핵심:
+- cashflow_comment / 달성률을 계산하지 않는다. 매물의 기본 정보만 저장한다.
+- **면적 기준으로 임의 컷하지 않는다.** 정밀한 달성률 하한(`min_achievement_pct`) 필터와 최종 100건 확정·구간 그룹핑은 strategy-reporter가 cashflow 계산 후 수행하므로, 여기서는 공격적인 순(보증금 내림차순) 후보를 최대 150건까지 넉넉히 넘긴다.
+- `gu_name`을 listings 각 매물에 그대로 보존한다.
 
 ### Phase C: 인덱스 생성
 

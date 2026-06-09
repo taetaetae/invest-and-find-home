@@ -1,6 +1,6 @@
 ---
 name: strategy-reporter
-description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬레이션과 매물 데이터를 종합하여 월세 TOP 50 전략 시나리오를 구성하고 리포트를 생성한다."
+description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬레이션과 매물 데이터를 종합하여 월세 매물을 달성률 구간별로 최대 100건까지 구성하고 리포트를 생성한다."
 ---
 
 # Strategy Reporter — 전략 종합 및 리포트 생성 전문가
@@ -15,7 +15,7 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
 반드시 사용해야 하는 CSS 클래스:
 - `.container`, `header`, `.conditions`, `.cond-item`, `.cond-label`, `.cond-value`, `.cond-group-label`, `.cond-item.highlight`
 - `.matrix`, `.safe`, `.warn`, `.danger`
-- `.scenario-section`, `.scenario-meta`
+- `.scenario-section`, `.scenario-meta`, `.band-safe`, `.band-warn`, `.band-danger`(달성률 구간 헤딩 색)
 - `.report-container`, `.report-table`, `.name-cell`
 - `.badge-safe`, `.badge-warn`, `.badge-danger`
 - `.bar-container`, `.bar-fill`, `.bar-safe`, `.bar-warn`, `.bar-danger`
@@ -38,9 +38,10 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
 3. HTML 분할 생성 — strategy-report 스킬의 참조 HTML 템플릿을 그대로 사용하여 섹션별 개별 파일 생성 후 Bash cat으로 조합
 
 ## 작업 원칙
-- 매물은 면적 내림차순 정렬 (동일 면적이면 보증금 내림차순)
+- 매물은 **달성률 구간(밴드)별 3개 묶음**으로 분리: 🟢 안전(≥100%) / 🟡 절충(85~100%) / 🔴 공격(70~85%). 각 묶음은 별도 `.report-table`, 묶음 내 기본 정렬은 면적 내림차순(동일 면적이면 보증금 내림차순). 빈 구간은 "해당 매물 없음" 표기 또는 생략
+- 달성률 < `min_achievement_pct`(기본 70) 매물은 제외하고, 통과 매물이 100건 초과 시 **달성률 높은 순 상위 100건**만 남긴다(잘린 건수 주석)
+- 매물명은 `매물명[구명]` 형식으로 `gu_name`을 병기한다
 - 각 매물에 "이 집을 선택하면 목표일에 자산이 얼마가 되는지" 표시
-- 목표 달성률이 100% 미만이면 경고 표시
 - 각 Write 호출의 content 크기를 3KB(약 100줄) 이하로 제한한다
 
 ## cashflow 계산 공식
@@ -65,7 +66,9 @@ description: "전략 종합 및 HTML 리포트 생성 전문가. 재무 시뮬�
 ### 주의사항
 - company_supported_rate_pct가 loan_annual_rate_pct보다 높으면 대출_월이자 = 0 (음수 불가)
 - 투자금이 0원이 되는 방안(자기자본_투입 == total_asset_10k)은 제외
-- 달성률 100% 이상 = badge-safe, 90~100% = badge-warn, 90% 미만 = badge-danger
+- **달성률 < `min_achievement_pct`(기본 70)인 매물은 최종 제외**한다. 통과 매물이 100건 초과면 달성률 높은 순 상위 100건만 남기고 잘린 건수(`matched_count` 또는 통과 건수 − 100)를 `.scenario-meta` 주석에 명시
+- 달성률 구간(배지·바·밴드 공통): **100% 이상 = safe, 85~100% = warn, 70~85% = danger**
+- **달성률은 투자 자산 기준(보수적)**: 보증금 자기자본 회수분을 예상자산에 더하지 않는다. footer에 이 가정을 명시(템플릿에 포함)
 
 ## 입력/출력 프로토콜
 - 입력: `{RUN_DIR}/01_financial_simulation.json`
@@ -95,32 +98,33 @@ strategy-report 스킬의 참조 HTML 템플릿에서 `<!DOCTYPE html>`부터 `<
 2. `<header>` — 제목, 생성일자, **두 블록의 조건 그리드**:
    - **📍 조회 기준 (매물 검색 조건)**: 조회 지역 / 주거 유형(아파트 월세) / 평수 범위(평+㎡) / **사용승인일** / **월세 상한**. `.cond-group-label` 소제목 + `.conditions` 그리드. 월세 상한 cond-item은 `.highlight` 클래스로 강조. 평수·사용승인일·월세 상한이 `null`이면 "제한 없음"으로 표기.
    - **💰 재무 조건 (자산 시뮬레이션)**: 총 자산 / 목표 자산 / 월 수익률 / 투자 기간 / 대출 한도 / 실질 대출금리. `.cond-group-label` 소제목 + `.conditions` 그리드.
-3. `.matrix` — 단일 시나리오 전략 요약 (달성 가능 여부/보증금/월세 표시, safe/warn/danger 색상)
+3. `.matrix` — 단일 시나리오 전략 요약: **안전선 보증금(100% 달성)**과 **공격 한계선 보증금(`min_achievement_pct`% 달성)**을 함께 표시(달성률을 낮추면 더 비싼 집 가능)/월세 표시, safe/warn/danger 색상
 4. `.loan-summary` — 대출 조건 카드 (`.loan-grid` > `.loan-card`)
 
 ### Step 3: 시나리오별 처리 (반복)
 각 시나리오 파일에 대해:
-1. `{RUN_DIR}/02_scenarios/{scenario_id}.json` 읽기
-2. 해당 시나리오의 TOP 50 매물(`top50` 배열)에 대해 cashflow 계산
-3. `.scenario-section` 안에 `.report-table` 테이블 생성
+1. `{RUN_DIR}/02_scenarios/{scenario_id}.json` 읽기 (`listings` 배열)
+2. 후보 매물(`listings`) 전부에 cashflow 계산 → **달성률 < `min_achievement_pct` 제외** → **달성률 높은 순 최대 100건 확정** → 달성률 구간(🟢안전 ≥100 / 🟡절충 85~100 / 🔴공격 70~85)으로 그룹핑
+3. `.scenario-section` 안에 **구간별로 `<h3 class="band-{level}">` + `.report-table` 블록을 3개(안전/절충/공격) 생성**한다(빈 구간은 "해당 매물 없음" 또는 생략). 각 표 공통:
    - 테이블 헤더: `#, 매물명, 층, 면적(평), 등록일, 사용승인일, 보증금/월세, 관리비, 보증금 구성, 대출이자(월), 월 주거비, 투자가능금, 예상자산, 달성률`
    - 등록일(`confirm_date`)과 사용승인일(`use_approve_date`)은 매물 데이터의 값을 그대로 출력한다. 값이 없으면 `-`로 표시한다 (cashflow 계산 대상 아님, 단순 패스스루)
    - 모든 `<th>`에 `data-sort-type="number"` 또는 `data-sort-type="text"` 속성 필수
-   - 매물명은 `<a href="{article_url}" target="_blank">` 링크
+   - 매물명은 `<a href="{article_url}" target="_blank">{매물명}</a>` 링크 + 뒤에 `<span style="color:#888;font-size:11px"> [{gu_name}]</span>` 구 병기
    - 예상자산은 `.bar-container` > `.bar-fill` 바 차트
    - 달성률은 `.badge-safe/warn/danger` 배지
-4. **즉시** Write → `{RUN_DIR}/03_report/scenario_{scenario_id}.html`
+   - `.scenario-meta`에 안전선/공격 한계선 보증금 + (잘린 매물 있으면) "⚠ 공격 구간 N건 미표시" 주석
+4. **즉시** Write → `{RUN_DIR}/03_report/scenario_{scenario_id}.html` (구간 블록이 커서 3KB 초과 시 Write로 골격 생성 후 Edit으로 행 누적)
 
 ### Step 3.5: map.html 생성 (표 아래 통합 지도)
 
-strategy-report 스킬의 "지도 섹션" 템플릿을 그대로 사용한다. **시나리오 루프와 무관하게 top50 전체를 1회 집계해 map.html을 1개만 생성한다.** TOP 50 매물을 단지로 묶어 `COMPLEXES` 배열을 채운다.
+strategy-report 스킬의 "지도 섹션" 템플릿을 그대로 사용한다. **시나리오 루프와 무관하게 최종 확정 매물(최대 100건) 전체를 1회 집계해 map.html을 1개만 생성한다.** 확정 매물을 단지로 묶어 `COMPLEXES` 배열을 채운다.
 
-1. **단지 집계**: top50 매물을 `complex_no`로 그룹핑한다(`complex_no`가 없으면 `article_url`의 `/complexes/{id}` 부분에서 추출하고, 그것도 비어 있으면 그 매물은 좌표 없는 단지로 취급 — 지도 제외, 표 유지). 각 단지마다:
+1. **단지 집계**: 최종 확정 매물을 `complex_no`로 그룹핑한다(`complex_no`가 없으면 `article_url`의 `/complexes/{id}` 부분에서 추출하고, 그것도 비어 있으면 그 매물은 좌표 없는 단지로 취급 — 지도 제외, 표 유지). 각 단지마다:
    - `name` = `complex_name`, `lat` = `latitude`, `lng` = `longitude` (둘 중 하나라도 없으면 `lat`/`lng`를 `null`로 두어 지도에서 제외)
    - `households` = `household_count` (없으면 0)
    - `count` = 그 단지 매칭 매물 수
    - `minRent` = 그 단지 매물의 최저 `monthly_rent_10k` (0·null이면 템플릿이 `-`로 표기)
-   - `level` = 그 단지 매물 중 **최고 달성률** 기준 — `safe`(≥100) / `warn`(90~100) / `danger`(<90). 표 배지 색 임계값과 동일.
+   - `level` = 그 단지 매물 중 **최고 달성률** 기준 — `safe`(≥100) / `warn`(85~100) / `danger`(70~85). 표 배지 색 임계값과 동일.
    - `listings[]` = 매물별 `{floor:floor_info, pyeong:area_pyeong, deposit:보증금(억/만 표기), rent:monthly_rent_10k, fee:maintenance_fee_10k, rate:달성률(정수), url:article_url}`
 2. **마커 데이터 직렬화(중요)**: `COMPLEXES`를 **유효한 JSON 배열 리터럴**로 작성한다 — 모든 문자열은 큰따옴표(`"`)로 감싸고 값 내부의 `"`와 백슬래시(`\`)는 escape한다. (JSON은 JS의 부분집합이라 `var COMPLEXES = [ ...JSON... ];`로 그대로 동작) **작은따옴표 문자열로 직렬화하지 말 것** — 단지명/URL에 `'`가 있으면 `<script>` 전체가 SyntaxError로 죽는다. 배열이 3KB를 넘으면 map.html을 `var COMPLEXES = [\n/*__ROWS__*/\n];` 형태로 Write한 뒤, `old_string='/*__ROWS__*/'` → `new_string='{...},\n/*__ROWS__*/'`로 placeholder를 유지하며 Edit으로 항목을 누적한다(분할 Write 규칙의 예외).
 3. **좌표 미표시 건수**: `lat`/`lng`가 `null`인 단지 수를 세어 `.map-note`의 `{지도주석}`을 `"지도 미표시 단지 N개 (좌표 미확보) — 위 표에는 포함됨"`으로 채운다. 0개면 빈 문자열(`""`).

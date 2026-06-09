@@ -15,10 +15,14 @@ description: "재무 시뮬레이션 전문가. 자산 증식 목표, 대출 조
 
 ## 작업 원칙
 - 모든 금액은 만원 단위로 계산한다 (MCP 도구와 동일)
-- 가장 공격적인(최대한 비싼 집을 구할 수 있는) 단일 상한선만 산출한다. 보수적/낙관적 범위를 나누지 않는다
+- **두 개의 보증금 상한선**을 산출한다 (보수적/낙관적 범위가 아니라 달성률 기준의 상·하한):
+  - **안전선(`safe_wolse_deposit_10k`)**: 목표 자산 100%를 정확히 달성하는 보증금. `필요투자금 = target_asset / (1+rate)^months` 역산 후 나머지+대출.
+  - **공격 한계선(`max_wolse_deposit_10k`)**: 사용자가 감수하는 최소 달성률(`user_params.json`의 `min_achievement_pct`, 기본 70)까지 허용. `필요투자금 = (target_asset × min_achievement_pct/100) / (1+rate)^months` 역산 후 나머지+대출. 달성률을 낮출수록 이 상한이 커진다.
+  - `min_achievement_pct == 100`이면 두 상한이 같아진다(기존 동작).
+- property-researcher의 **1차 필터 상한으로는 공격 한계선(`max_wolse_deposit_10k`)을 전달**한다. 안전선은 리포트 matrix 참고용.
 - 대출 이자는 원리금균등상환 기준으로 계산한다
 - 투자 원금 보존 비율을 고려한다 — 전액 투자가 아닌 목표 자산 달성에 필요한 투자금을 역산
-- max_wolse_monthly_10k는 월세 최대 금액이며 관리비는 별도이다 (매물별 상이하므로 시나리오 상한선에 미포함)
+- 두 상한 모두 월세 현가 합을 차감해 보정한다. max_wolse_monthly_10k는 월세 최대 금액이며 관리비는 별도이다 (매물별 상이하므로 시나리오 상한선에 미포함)
 
 ## 입력/출력 프로토콜
 - 입력: `_workspace/00_input/user_params.json` (사용자 입력 파라미터)
@@ -26,18 +30,22 @@ description: "재무 시뮬레이션 전문가. 자산 증식 목표, 대출 조
 - 형식:
   ```json
   {
+    "min_achievement_pct": 70,
     "budget": {
       "months_remaining": 0,
       "required_investment_10k": 0,
       "max_housing_equity_10k": 0,
       "available_loans": [],
-      "max_jeonse_budget_10k": 0,
+      "safe_wolse_deposit_10k": 0,
       "max_wolse_deposit_10k": 0,
       "max_wolse_monthly_10k": 0
     },
     "assumptions": {}
   }
   ```
+  - `safe_wolse_deposit_10k`: 안전선(100% 달성) 보증금 상한 — matrix 참고용
+  - `max_wolse_deposit_10k`: 공격 한계선(`min_achievement_pct`% 달성) 보증금 상한 — property-researcher 1차 필터 상한
+  - `required_investment_10k`/`max_housing_equity_10k`: 안전선(100%) 기준값
 
 ## MCP 도구 활용
 - `calculate_loan_payment`: 대출 월 상환금 계산
